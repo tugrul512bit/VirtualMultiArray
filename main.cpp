@@ -17,6 +17,7 @@
 #include <functional>
 
 
+#include "GraphicsCardSupplyDepot.h"
 #include "VirtualMultiArray.h"
 
 class Particle
@@ -74,15 +75,15 @@ void usingAllGraphicsCards(T & f)
 
 int main(int argC, char ** argV)
 {
-	auto f = [&](std::vector<ClDevice> device){
+		GraphicsCardSupplyDepot depot;
 
 		// n needs to be integer multiple of pageSize !!!!
 		const size_t n = 1024*10000;
 		const size_t pageSize=1024;
 		const int maxActivePagesPerGpu = 100;
 
-		VirtualMultiArray<Particle> test(n,device,pageSize,maxActivePagesPerGpu);
-
+		VirtualMultiArray<Particle> test(n,depot.requestGpus(),pageSize,maxActivePagesPerGpu);
+		//VirtualMultiArray<int> test2(n,depot.requestGpus(),pageSize,maxActivePagesPerGpu);
 
 		std::chrono::milliseconds t1 =  std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch());
 		#pragma omp parallel for
@@ -90,6 +91,7 @@ int main(int argC, char ** argV)
 		{
 			// seamless access to i index
 			// create a particle with id=i and write to array
+			//test2.set(i,int(i));
 			test.set(i,Particle(i));
 		}
 
@@ -98,6 +100,11 @@ int main(int argC, char ** argV)
 		{
 			// seamless access to i index
 			// get particle id and compare to expected value
+			//if(test2.get(i)!=i)
+			//{
+			//	std::cout<<"!!! error at "<<i<<std::endl;
+			//}
+
 			if(test.get(i).getId()!=i)
 			{
 				std::cout<<"!!! error at "<<i<<std::endl;
@@ -136,9 +143,9 @@ int main(int argC, char ** argV)
 			std::cout<<"interleaved threading per object    44 bytes      153.6  MB/s   32  objects  8                 100M              100                    500MB 4.5GB"<<std::endl;
 			std::cout<<"interleaved threading per object    4kB           2474.0 MB/s   32  objects  8                 1M                5                      400MB 4.2GB"<<std::endl;
 		}
-	};
 
-	usingAllGraphicsCards(f);
+
+
 
 
 
