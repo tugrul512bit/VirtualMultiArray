@@ -8,6 +8,7 @@
 #ifndef CLARRAY_H_
 #define CLARRAY_H_
 
+#include<iostream>
 #include<memory>
 #include"CL/cl.h"
 

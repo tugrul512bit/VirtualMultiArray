@@ -8,6 +8,7 @@
 #ifndef CLCOMMANDQUEUE_H_
 #define CLCOMMANDQUEUE_H_
 
+#include<iostream>
 #include<memory>
 #include"ClContext.h"
 #include"ClDevice.h"

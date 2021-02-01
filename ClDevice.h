@@ -8,6 +8,7 @@
 #ifndef CLDEVICE_H_
 #define CLDEVICE_H_
 
+#include<iostream>
 #include<vector>
 #include<memory>
 #include"ClPlatform.h"

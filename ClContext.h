@@ -8,6 +8,7 @@
 #ifndef CLCONTEXT_H_
 #define CLCONTEXT_H_
 
+#include<iostream>
 #include<memory>
 #include"ClDevice.h"
 #include"CL/cl.h"

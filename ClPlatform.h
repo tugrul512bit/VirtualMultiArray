@@ -8,6 +8,7 @@
 #ifndef CLPLATFORM_H_
 #define CLPLATFORM_H_
 
+#include<iostream>
 #include<memory>
 #include"CL/cl.h"
 
