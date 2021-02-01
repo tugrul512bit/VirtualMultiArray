@@ -2,15 +2,25 @@
 Multi graphics card based virtual array for C++ objects
 
 ```
+GraphicsCardSupplyDepot depot;
+
 const size_t n = 1024*10000;
 const size_t pageSize=1024;
 const int maxActivePagesPerGpu = 100;
 
 // uses VRAMs for 10M particles
 // uses RAM for paging (active pages)
-VirtualMultiArray<Particle> test(n,device,pageSize,maxActivePagesPerGpu);
+VirtualMultiArray<Particle> particleArray(n,depot.requestGpus(),pageSize,maxActivePagesPerGpu);
 
-test.set(5,Particle(31415));
+VirtualMultiArray<int> intArray(1000000,depot.requestGpus(),100,10);
 
-std::cout<<test.get(5).getId()<<std::endl;
+particleArray.set(5,Particle(31415));
+intArray.set(0,3);
+intArray.set(1,1);
+intArray.set(2,4);
+intArray.set(3,1);
+intArray.set(4,5);
+
+std::cout<<particleArray.get(5).getId()<<std::endl;
+std::cout<<intArray.get(5)<<std::endl;
 ```
