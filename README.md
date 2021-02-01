@@ -1,5 +1,7 @@
 # VirtualMultiArray
-Multi graphics card based virtual array for C++ objects
+Multi graphics card based C++ virtual array implementation that uses OpenCL just for the data transfers on pcie bridge.
+
+Wiki: https://github.com/tugrul512bit/VirtualMultiArray/wiki/How-it-works
 
 ```
 GraphicsCardSupplyDepot depot;
