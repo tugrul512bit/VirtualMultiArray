@@ -34,41 +34,6 @@ private:
 	int id;
 };
 
-template<typename T>
-void usingAllGraphicsCards(T & f)
-{
-	ClPlatform platform;
-	std::vector<ClDevice> device;
-	unsigned int n = platform.size();
-	for(unsigned int i=0;i<n;i++)
-	{
-		ClDevice dev(platform.id(i));
-		auto dl = dev.generate();
-		for(auto e:dl)
-			device.push_back(e);
-	}
-
-
-	// "device" vector is what VirtualMultiArray needs, contains all OpenCL-capable GPUs from all platforms in system
-	// integrated-gpus will not save any RAM. Only discrete graphics cards with their own VRAMs
-	// each physical graphics card is given 4 independent streams/commandQueues that can serve 4 CPU threads concurrently
-	// for a system of 4 GPUs, a CPU with 16 threads is optimal
-	// every virtual GPU is mapped to virtual array elements in an interleaved order
-	// index=0 : gpu 1 stream 1
-	// index=1 : gpu 1 stream 2
-	// index=2 : gpu 1 stream 3
-	// index=3 : gpu 1 stream 4
-	// index=4 : gpu 2 stream 1
-	// index=5 : gpu 2 stream 2
-	// index=6 : gpu 2 stream 3
-	// index=7 : gpu 2 stream 4
-	// there is no threading involved in background. just what the developer uses
-	// thread-safe to use get() and set() for any index
-	// all virtual array data is distributed equally to all cards (its not VRAM size aware, simply distributes 1.5GB per card if 4.5GB data is needed on 3 cards)
-	f(device);
-}
-
-
 
 // testing
 #include <chrono>
