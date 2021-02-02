@@ -70,10 +70,10 @@ public:
 
 	}
 
-	T get(size_t index)
+	T get(const size_t & index)
 	{
-		size_t selectedPage = index / *szp;
-		int selectedActivePage = selectedPage % *nump;
+		const size_t selectedPage = index / *szp;
+		const int selectedActivePage = selectedPage % *nump;
 		if(cpu.get()[selectedActivePage].getTargetGpuPage()==selectedPage)
 		{
 			return cpu.get()[selectedActivePage].get(index - selectedPage * *szp);
@@ -120,10 +120,10 @@ public:
 
 	}
 
-	void set(size_t index, T val)
+	void set(const size_t & index, const T & val)
 	{
-		size_t selectedPage = index / *szp;
-		int selectedActivePage = selectedPage % *nump;
+		const size_t selectedPage = index / *szp;
+		const int selectedActivePage = selectedPage % *nump;
 		if(cpu.get()[selectedActivePage].getTargetGpuPage()==selectedPage)
 		{
 			cpu.get()[selectedActivePage].edit(index - selectedPage * *szp, val);

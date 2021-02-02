@@ -58,20 +58,18 @@ VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=10
 
 }
 
-	T get(size_t index){
-
-		size_t selectedPage = index/pageSize;
-		size_t selectedVirtualArray = selectedPage%numDevice;
-		size_t selectedElement = mGpuIndex[selectedPage]*pageSize + (index%pageSize);
+	T get(const size_t & index){
+		const size_t selectedPage = index/pageSize;
+		const size_t selectedVirtualArray = selectedPage%numDevice;
+		const size_t selectedElement = mGpuIndex[selectedPage]*pageSize + (index%pageSize);
 		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
 		return va.get()[selectedVirtualArray].get(selectedElement);
 	}
 
-	void set(size_t index, T val){
-
-		size_t selectedPage = index/pageSize;
-		size_t selectedVirtualArray = selectedPage%numDevice;
-		size_t selectedElement = mGpuIndex[selectedPage]*pageSize + (index%pageSize);
+	void set(const size_t & index, const T & val){
+		const size_t selectedPage = index/pageSize;
+		const size_t selectedVirtualArray = selectedPage%numDevice;
+		const size_t selectedElement = mGpuIndex[selectedPage]*pageSize + (index%pageSize);
 		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
 		va.get()[selectedVirtualArray].set(selectedElement,val);
 	}
