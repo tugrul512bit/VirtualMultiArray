@@ -9,7 +9,7 @@
 #define ALIGNEDCPUARRAY_H_
 
 #include<iostream>
-#include<sys/mman.h>
+
 #include"ClCommandQueue.h"
 #include"ClContext.h"
 #include"CL/cl.h"
@@ -39,7 +39,6 @@ public:
 				std::cout<<"error: clmap"<<std::endl;
 			}
 
-			if(ENOMEM==mlock(arr,size)){ std::cout<<"Not enough pinned memory."<<std::endl; pinned = false; };
 		}
 		else
 		{
