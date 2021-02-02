@@ -8,6 +8,7 @@
 #ifndef ALIGNEDCPUARRAY_H_
 #define ALIGNEDCPUARRAY_H_
 
+#include<iostream>
 #include<sys/mman.h>
 #include"CL/cl.h"
 
@@ -21,7 +22,7 @@ public:
 		// todo: optimize for pinned array
 		if(pinned)
 		{
-			mlock(arr,size);
+			if(ENOMEM==mlock(arr,size)){ std::cout<<"Not enough pinned memory."<<std::endl; pinned = false; };
 		}
 
 	}
@@ -31,14 +32,16 @@ public:
 	~AlignedCpuArray()
 	{
 		if(pinned)
+		{
 			munlock(arr,size);
+		}
 
 		if(arr!=nullptr)
 			free(arr);
 	}
 private:
 	const size_t size;
-	const bool pinned;
+	bool pinned;
 	T * const arr;
 
 };
