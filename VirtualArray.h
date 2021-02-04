@@ -23,34 +23,23 @@ template<typename T>
 class VirtualArray
 {
 public:
-	VirtualArray(){}
-	VirtualArray(size_t sizeP,  ClDevice device, int sizePageP=1024, int numActivePageP=50){
-		sz = std::make_shared<size_t>();
-		*sz=sizeP;
-		szp= std::make_shared<int>();
-		*szp=sizePageP;
-		nump=std::make_shared<int>();
-		*nump=numActivePageP;
+	VirtualArray():sz(0),szp(0),nump(0){}
+	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		dv = std::make_shared<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= std::make_shared<ClContext>(*dv,0);
 
 		q= std::make_shared<ClCommandQueue>(*ctx,*dv);
-		gpu= std::make_shared<ClArray<T>>(*sz,*ctx);
-		cpu= std::shared_ptr<Page<T>>(new Page<T>[*nump],[](Page<T> * ptr){delete [] ptr;});
-		for(int i=0;i<*nump;i++)
+		gpu= std::make_shared<ClArray<T>>(sz,*ctx);
+		cpu= std::shared_ptr<Page<T>>(new Page<T>[nump],[](Page<T> * ptr){delete [] ptr;});
+		for(int i=0;i<nump;i++)
 		{
-			cpu.get()[i]=Page<T>(*szp,*ctx,*q);
+			cpu.get()[i]=Page<T>(szp,*ctx,*q);
 		}
 	}
 
-	VirtualArray(size_t sizeP, ClContext context, ClDevice device, int sizePageP=1024, int numActivePageP=50){
-		sz = std::make_shared<size_t>();
-		*sz=sizeP;
-		szp= std::make_shared<int>();
-		*szp=sizePageP;
-		nump=std::make_shared<int>();
-		*nump=numActivePageP;
+	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50):sz(sizeP),szp(sizePageP),nump(numActivePageP){
+
 		dv = std::make_shared<ClDevice>();
 
 		*dv=device.generate()[0];
@@ -59,25 +48,25 @@ public:
 
 		q= std::make_shared<ClCommandQueue>(*ctx,*dv);
 
-		gpu= std::make_shared<ClArray<T>>(*sz,*ctx);
+		gpu= std::make_shared<ClArray<T>>(sz,*ctx);
 
-		cpu= std::shared_ptr<Page<T>>(new Page<T>[*nump],[](Page<T> * ptr){delete [] ptr;});
+		cpu= std::shared_ptr<Page<T>>(new Page<T>[nump],[](Page<T> * ptr){delete [] ptr;});
 
-		for(int i=0;i<*nump;i++)
+		for(int i=0;i<nump;i++)
 		{
-			cpu.get()[i]=Page<T>(*szp,*ctx,*q);
+			cpu.get()[i]=Page<T>(szp,*ctx,*q);
 		}
 
 	}
 
-	T get(const size_t & index)
+	T get(const size_t & index/*,const size_t selectedPage*/)
 	{
-		const size_t selectedPage = index / *szp;
-		const int selectedActivePage = selectedPage % *nump;
+		const size_t selectedPage = index/szp;
+		const int selectedActivePage = selectedPage % nump;
 		auto & sel = cpu.get()[selectedActivePage];
 		if(sel.getTargetGpuPage()==selectedPage)
 		{
-			return sel.get(index - selectedPage * *szp);
+			return sel.get(index - selectedPage * szp);
 		}
 		else
 		{
@@ -85,7 +74,7 @@ public:
 			if(sel.isEdited())
 			{
 				// upload edited
-				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: write buffer"<<std::endl;
@@ -93,7 +82,7 @@ public:
 
 
 				sel.setTargetGpuPage(selectedPage);
-				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -105,7 +94,7 @@ public:
 			else
 			{
 				sel.setTargetGpuPage(selectedPage);
-				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -116,19 +105,19 @@ public:
 
 			}
 			sel.reset();
-			return sel.get(index - selectedPage * *szp);
+			return sel.get(index - selectedPage * szp);
 		}
 
 	}
 
-	void set(const size_t & index, const T & val)
+	void set(const size_t & index, const T & val/*, const size_t selectedPage*/)
 	{
-		const size_t selectedPage = index / *szp;
-		const int selectedActivePage = selectedPage % *nump;
+		const size_t selectedPage = index/szp;
+		const int selectedActivePage = selectedPage % nump;
 		auto & sel = cpu.get()[selectedActivePage];
 		if(sel.getTargetGpuPage()==selectedPage)
 		{
-			sel.edit(index - selectedPage * *szp, val);
+			sel.edit(index - selectedPage * szp, val);
 		}
 		else
 		{
@@ -137,7 +126,7 @@ public:
 			{
 
 				// upload edited
-				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: write buffer"<<std::endl;
@@ -145,7 +134,7 @@ public:
 
 
 				sel.setTargetGpuPage(selectedPage);
-				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -156,7 +145,7 @@ public:
 			else
 			{
 				sel.setTargetGpuPage(selectedPage);
-				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -165,7 +154,7 @@ public:
 				clFinish(q->getQueue());
 
 			}
-			sel.edit(index - selectedPage * *szp, val);
+			sel.edit(index - selectedPage * szp, val);
 		}
 
 	}
@@ -173,9 +162,7 @@ public:
 
 	void copyValues(VirtualArray *d1,const VirtualArray & d2)
 	{
-		d1->sz = d2.sz;
-		d1->szp = d2.szp;
-		d1->nump = d2.nump;
+
 		d1->dv = d2.dv;
 		d1->ctx = d2.ctx;
 		d1->q = d2.q;
@@ -183,36 +170,29 @@ public:
 		d1->cpu = d2.cpu;
 	}
 
-	VirtualArray(VirtualArray & copyDev)
+	VirtualArray(VirtualArray & copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
 	{
 		copyValues(this, copyDev);
 	}
 
-	VirtualArray(const VirtualArray & copyDev)
+	VirtualArray(const VirtualArray & copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
 	{
 		copyValues(this, copyDev);
 	}
 
-	VirtualArray(VirtualArray && copyDev)
+	VirtualArray(VirtualArray && copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
 	{
 		copyValues(this, copyDev);
 	}
 
-
-
-	VirtualArray operator=(VirtualArray copyDev)
-	{
-		copyValues(this, copyDev);
-		return *this;
-	}
 
 	ClContext getContext(){ return *ctx; }
 
 	~VirtualArray(){}
 private:
-	std::shared_ptr<size_t> sz;
-	std::shared_ptr<int> szp;
-	std::shared_ptr<int> nump;
+	const size_t sz;
+	const int szp;
+	const int nump;
 	std::shared_ptr<ClDevice> dv;
 	std::shared_ptr<ClContext> ctx;
 	std::shared_ptr<ClCommandQueue> q;
