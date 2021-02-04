@@ -74,25 +74,26 @@ public:
 	{
 		const size_t selectedPage = index / *szp;
 		const int selectedActivePage = selectedPage % *nump;
-		if(cpu.get()[selectedActivePage].getTargetGpuPage()==selectedPage)
+		auto & sel = cpu.get()[selectedActivePage];
+		if(sel.getTargetGpuPage()==selectedPage)
 		{
-			return cpu.get()[selectedActivePage].get(index - selectedPage * *szp);
+			return sel.get(index - selectedPage * *szp);
 		}
 		else
 		{
 			//ctx->selectAsCurrent();
-			if(cpu.get()[selectedActivePage].isEdited())
+			if(sel.isEdited())
 			{
 				// upload edited
-				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(cpu.get()[selectedActivePage].getTargetGpuPage())* *szp,sizeof(T)* *szp,cpu.get()[selectedActivePage].ptr(),0,nullptr,nullptr);
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: write buffer"<<std::endl;
 				}
 
 
-				cpu.get()[selectedActivePage].setTargetGpuPage(selectedPage);
-				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,cpu.get()[selectedActivePage].ptr(),0,nullptr,nullptr);
+				sel.setTargetGpuPage(selectedPage);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -103,8 +104,8 @@ public:
 			}
 			else
 			{
-				cpu.get()[selectedActivePage].setTargetGpuPage(selectedPage);
-				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,cpu.get()[selectedActivePage].ptr(),0,nullptr,nullptr);
+				sel.setTargetGpuPage(selectedPage);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -114,8 +115,8 @@ public:
 
 
 			}
-			cpu.get()[selectedActivePage].reset();
-			return cpu.get()[selectedActivePage].get(index - selectedPage * *szp);
+			sel.reset();
+			return sel.get(index - selectedPage * *szp);
 		}
 
 	}
@@ -124,26 +125,27 @@ public:
 	{
 		const size_t selectedPage = index / *szp;
 		const int selectedActivePage = selectedPage % *nump;
-		if(cpu.get()[selectedActivePage].getTargetGpuPage()==selectedPage)
+		auto & sel = cpu.get()[selectedActivePage];
+		if(sel.getTargetGpuPage()==selectedPage)
 		{
-			cpu.get()[selectedActivePage].edit(index - selectedPage * *szp, val);
+			sel.edit(index - selectedPage * *szp, val);
 		}
 		else
 		{
 			//ctx->selectAsCurrent();
-			if(cpu.get()[selectedActivePage].isEdited())
+			if(sel.isEdited())
 			{
 
 				// upload edited
-				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(cpu.get()[selectedActivePage].getTargetGpuPage())* *szp,sizeof(T)* *szp,cpu.get()[selectedActivePage].ptr(),0,nullptr,nullptr);
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: write buffer"<<std::endl;
 				}
 
 
-				cpu.get()[selectedActivePage].setTargetGpuPage(selectedPage);
-				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,cpu.get()[selectedActivePage].ptr(),0,nullptr,nullptr);
+				sel.setTargetGpuPage(selectedPage);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -153,8 +155,8 @@ public:
 			}
 			else
 			{
-				cpu.get()[selectedActivePage].setTargetGpuPage(selectedPage);
-				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,cpu.get()[selectedActivePage].ptr(),0,nullptr,nullptr);
+				sel.setTargetGpuPage(selectedPage);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * *szp,sizeof(T)* *szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
 					std::cout<<"error: read buffer"<<std::endl;
@@ -163,7 +165,7 @@ public:
 				clFinish(q->getQueue());
 
 			}
-			cpu.get()[selectedActivePage].edit(index - selectedPage * *szp, val);
+			sel.edit(index - selectedPage * *szp, val);
 		}
 
 	}
