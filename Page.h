@@ -18,7 +18,7 @@ class Page
 {
 public:
 	Page(){arr=nullptr; edited=false;targetGpuPage=-1;}
-	Page(int sz){ arr=std::shared_ptr<AlignedCpuArray<T>>(new AlignedCpuArray<T>(sz,4096,true)); edited=false; targetGpuPage=-1;}
+	Page(int sz,ClContext ctxP, ClCommandQueue cqP){ arr=std::shared_ptr<AlignedCpuArray<T>>(new AlignedCpuArray<T>(*ctxP.ctxPtr(),cqP.getQueue(),sz,4096,true)); edited=false; targetGpuPage=-1;}
 	T get(int i){ return arr->getArray()[i]; }
 	void edit(int i, T val){ arr->getArray()[i]=val; edited=true; }
 	bool isEdited(){ return edited; }

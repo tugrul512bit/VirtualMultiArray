@@ -40,7 +40,7 @@ public:
 		cpu= std::shared_ptr<Page<T>>(new Page<T>[*nump],[](Page<T> * ptr){delete [] ptr;});
 		for(int i=0;i<*nump;i++)
 		{
-			cpu.get()[i]=Page<T>(*szp);
+			cpu.get()[i]=Page<T>(*szp,*ctx,*q);
 		}
 	}
 
@@ -65,7 +65,7 @@ public:
 
 		for(int i=0;i<*nump;i++)
 		{
-			cpu.get()[i]=Page<T>(*szp);
+			cpu.get()[i]=Page<T>(*szp,*ctx,*q);
 		}
 
 	}
