@@ -1,4 +1,3 @@
-// author: huseyin tugrul buyukisik
 // Virtual Object Array that uses all graphics cards in system as storage
 // to achieve seamless concurrent access to all elements
 // example: 4.5GB "Particle" array distributed to 3 graphics cards, each serving 1.5GB of its VRAM
