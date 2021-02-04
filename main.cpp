@@ -89,7 +89,7 @@ int main(int argC, char ** argV)
 
 			std::cout<<"testing method                      object size   throughput    page size    cpu threads       total objects     active pages per gpu   RAM   VRAM"<<std::endl;
 			std::cout<<"uniform distribution random access  44 bytes      3.1   MB/s    128 objects  8                 100k              4"<<std::endl;
-			std::cout<<"uniform distribution random access  4kB           72.5  MB/s    1   object   8                 100k              4"<<std::endl;
+			std::cout<<"uniform distribution random access  4kB           238.3 MB/s    1   object   8                 100k              4"<<std::endl;
 			std::cout<<"serial access per thread            4kB           496.4 MB/s    1   object   8                 100k              4"<<std::endl;
 			std::cout<<"serial access per thread            4kB           2467.0MB/s    32  objects  8                 100k              4"<<std::endl;
 			std::cout<<"serial access per thread            44 bytes      142.9 MB/s    32  objects  8                 100k              4"<<std::endl;
