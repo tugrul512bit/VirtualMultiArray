@@ -15,11 +15,19 @@
 #include"ClPlatform.h"
 #include"CL/cl.h"
 
+// graphics card
+//
 class ClDevice
 {
 public:
+	// don't use this
 	ClDevice(){ device=nullptr; n=nullptr; vram=nullptr;}
+
+	// this clones a virtual card out of physical card so that same card can overlap data copies through concurrent usage of both devices
 	ClDevice(cl_device_id devId, int vramP=2){ device=std::make_shared<cl_device_id>(); *device=devId; n=std::make_shared<unsigned int>(); *n=1; vram=std::make_shared<int>(); *vram=vramP; }
+
+	// holds all graphics cards found in a platform like nvidia,amd or intel
+	// todo: add dedicated-vram query to separate integrated-gpus from this. intent is to save RAM, waste VRAM
 	ClDevice(cl_platform_id platform, bool debug=false)
 	{
 		vram = std::shared_ptr<int>(new int[20],[&](int * ptr){ delete [] ptr; });
@@ -74,6 +82,7 @@ public:
 		}
 	}
 
+	// generates vector of devices each holding only 1 card information to be used in virtual array
 	std::vector<ClDevice> generate()
 	{
 		std::vector<ClDevice> dev;
@@ -84,9 +93,11 @@ public:
 		return dev;
 	}
 
+	// for internal opencl logic
 	cl_device_id * devPtr(int index=0){ return device.get()+index;}
 
-	// in GB
+	// VRAM size of card in GB
+	// not used yet (todo: make default storage distribution related to this value instead of equal distribution)
 	int vramSize(int index=0){ return vram.get()[index]; }
 
 

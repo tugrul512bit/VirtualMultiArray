@@ -19,11 +19,20 @@
 #include"Page.h"
 #include"CL/cl.h"
 
+// this is a non-threadsafe single-graphics-card using virtual array
 template<typename T>
 class VirtualArray
 {
 public:
+	// don't use this
 	VirtualArray():sz(0),szp(0),nump(0){}
+
+	// for generating a physical-card based virtual array
+	// takes a single virtual graphics card, size(in number of objects), page size(in number of objects), active pages (number of pages in interleaved order for caching)
+	// sizeP: number of elements of array (VRAM backed)
+	// device: opencl wrapper that contains only 1 graphics card
+	// sizePageP: number of elements of each page (bigger pages = more RAM used)
+	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		dv = std::make_shared<ClDevice>();
 		*dv=device.generate()[0];
@@ -38,6 +47,13 @@ public:
 		}
 	}
 
+	// for generating a virtual-card based virtual array
+	// takes a single virtual graphics card, size(in number of objects), page size(in number of objects), active pages (number of pages in interleaved order for caching)
+	// context: a shared context with other virtual cards (or a physical card)
+	// sizeP: number of elements of array (VRAM backed)
+	// device: opencl wrapper that contains only 1 graphics card
+	// sizePageP: number of elements of each page (bigger pages = more RAM used)
+	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 
 		dv = std::make_shared<ClDevice>();
@@ -59,7 +75,8 @@ public:
 
 	}
 
-	T get(const size_t & index/*,const size_t selectedPage*/)
+	// array access for reading an element at an index
+	T get(const size_t & index)
 	{
 		const size_t selectedPage = index/szp;
 		const int selectedActivePage = selectedPage % nump;
@@ -70,7 +87,7 @@ public:
 		}
 		else
 		{
-			//ctx->selectAsCurrent();
+
 			if(sel.isEdited())
 			{
 				// upload edited
@@ -110,7 +127,9 @@ public:
 
 	}
 
-	void set(const size_t & index, const T & val/*, const size_t selectedPage*/)
+	// array access for writing to an element at an index
+	// val: value to write to array
+	void set(const size_t & index, const T & val)
 	{
 		const size_t selectedPage = index/szp;
 		const int selectedActivePage = selectedPage % nump;
@@ -121,7 +140,6 @@ public:
 		}
 		else
 		{
-			//ctx->selectAsCurrent();
 			if(sel.isEdited())
 			{
 

@@ -14,6 +14,9 @@
 #include"ClDevice.h"
 #include"CL/cl.h"
 
+// wrapper for opencl command queue for simple usage in opencl operations
+// default property is chosen when property parameter is null and this means in-order execution of opencl commands on same command queue
+// smart pointer is taking care of releasing its resources but be cautious for scope. Every higher level object needs to stay alive until lower levels are freed
 class ClCommandQueue
 {
 public:

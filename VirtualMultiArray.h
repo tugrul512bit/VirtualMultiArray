@@ -22,7 +22,17 @@ class VirtualMultiArray
 {
 public:
 
-// size = integer multiple of pageSize
+	// creates virtual array on a list of devices
+	// size: number of array elements (needs to be integer-multiple of pageSize)
+	// device: list of (physical) graphics cards that are used to generate multiple virtual cards to overlap multiple operations(device to host, host-to-device data copies) on them
+	// pageSizeP: number of elements per page (should not be too big for pinned-array limitations, should not be too small for pcie bandwidth efficiency)
+	// numActivePage: number of RAM-backed pages per (virtual) graphics card
+	// memMult: 1) "number of virtual graphics cards per physical card".  {1,2,3} means first card will be just physical, second card will be dual v-cards, last one becomes 3 v-cards
+	//          2) "ratio of VRAM usage per physical card". {1,2,3} means a 6GB array will be distributed as 1GB,2GB,3GB on 3 cards
+	//          3) "average multithreaded usage limit per physical card". {1,2,3} means no data-copy-overlap on first card, 2 copies in-flight on second card, 3 copies concurrently on 3rd card
+	//          4) to disable a card, give it 0. {1,0,5} means first card is physical, second card is not used, third card will have intense pcie activity and VRAM consumption
+	//          5) every value in vector means extra RAM usage.
+	//          default: {4,4,...,4} all cards are given 4 data channels so total RAM usage becomes this: { nGpu * 4 * pageSize * sizeof(T) * numActivePage }
 	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50, std::vector<int> memMult=std::vector<int>()){
 		int numPhysicalCard = device.size();
 
@@ -85,13 +95,8 @@ public:
 
 	}
 
-/*
- * o o o o o o o o o o o (11)   selectedPage
- * a e i a e i a e i a e (3)  a e (2) selectedPage - (selectedPage/numDevice)*numDevice    [1]
- * o o o o o o o o o o   (10)   selectedPage
- * a e i a e i a e i a   (3)  a   (1) selectedPage - (selectedPage/numDevice)*numDevice    [0]
-*/
-
+	// get data at index
+	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
 	T get(const size_t & index){
 		const size_t selectedPage = index/pageSize;
 		const size_t numInterleave = selectedPage/numDevice;
@@ -104,6 +109,8 @@ public:
 		return va.get()[selectedVirtualArray].get(selectedElement);
 	}
 
+	// put data to index
+	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
 	void set(const size_t & index, const T & val){
 		const size_t selectedPage = index/pageSize;
 		const size_t numInterleave = selectedPage/numDevice;

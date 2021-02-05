@@ -12,9 +12,11 @@
 #include<memory>
 #include"CL/cl.h"
 
+// opencl platform that belongs to a vendor like amd, intel or nvidia
 class ClPlatform
 {
 public:
+	// creates a platform to be used for generating devices->contexts -> command-queues
 	ClPlatform()
 	{
 		platform = std::shared_ptr<cl_platform_id>(new cl_platform_id[5],[](cl_platform_id * ptr)
@@ -32,7 +34,7 @@ public:
 		}
 	}
 
-	// max 5 platforms supported
+	// max 5 platforms supported (todo: add a filter for selecting a specific platfor i.e. "non-experimental"/"nvidia"/"discrete gpu")
 	cl_platform_id id(int index=0){ return platform.get()[index];}
 	unsigned int size(){ return *n; }
 private:

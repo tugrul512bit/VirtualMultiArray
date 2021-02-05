@@ -13,6 +13,8 @@
 #include"ClDevice.h"
 #include"CL/cl.h"
 
+// wrapper for opencl context that is used to hold multiple command queues per graphics card to overlap data copies
+// smart pointer takes care of releasing its resources so that multiple instances can exist without breaking raii
 class ClContext
 {
 public:
@@ -36,8 +38,10 @@ public:
 		}
 	}
 
+	// creates wrapper that shares raw context data
 	ClContext(std::shared_ptr<cl_context> ctx){	 context = ctx; }
 
+	// generates a new wrapper using same context (this is for generating multiple virtual cards that are on same physical card)
 	std::shared_ptr<ClContext> generate()
 	{
 		return std::make_shared<ClContext>(context);

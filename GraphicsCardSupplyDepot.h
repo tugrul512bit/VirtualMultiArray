@@ -14,9 +14,12 @@
 #include"ClPlatform.h"
 #include"ClDevice.h"
 
+// prepares a list of graphics card found in system
 class GraphicsCardSupplyDepot
 {
 public:
+	// prepares a list of all graphics cards in system.
+	// debug=true: writes names and vram sizes of graphics cards on std::cout
 	GraphicsCardSupplyDepot(const bool debug=false)
 	{
 		platformPtr = std::make_shared<ClPlatform>();
@@ -32,6 +35,8 @@ public:
 		}
 	}
 
+	// gets list of already-prepared graphics cards
+	// can be used on multiple VirtualMultiArray instances
 	std::vector<ClDevice> requestGpus(){ return *deviceVecPtr; }
 
 	~GraphicsCardSupplyDepot()
