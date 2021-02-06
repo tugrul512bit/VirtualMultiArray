@@ -121,6 +121,26 @@ public:
 
 		va.get()[selectedVirtualArray].set(selectedElement,val);
 	}
+
+	class SetterGetter
+	{
+	public:
+		SetterGetter():ptr(nullptr),idx(0){}
+
+		SetterGetter(size_t i, VirtualMultiArray<T> * p):idx(i),ptr(p){}
+
+		void operator = (T val)  { ptr->set(idx,val); }
+		operator T(){ return ptr->get(idx); }
+	private:
+		size_t  idx;
+		VirtualMultiArray<T> * ptr;
+
+	};
+
+	SetterGetter operator [](const size_t id) { return SetterGetter(id,this); }
+
+
+
 ~VirtualMultiArray(){}
 private:
 std::shared_ptr<VirtualArray<T>> va;
