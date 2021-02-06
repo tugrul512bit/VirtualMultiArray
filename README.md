@@ -17,12 +17,14 @@ VirtualMultiArray<Particle> particleArray(n,depot.requestGpus(),pageSize,maxActi
 VirtualMultiArray<int> intArray(1000000,depot.requestGpus(),100,10);
 
 particleArray.set(5,Particle(31415));
-intArray.set(0,3);
-intArray.set(1,1);
-intArray.set(2,4);
+intArray.set(0,3); // or intArray[0]=3;
+intArray.set(1,1); 
+intArray.set(2,4); 
 intArray.set(3,1);
-intArray.set(4,5);
+intArray.set(4,5); // or intArray[4]=5;
 
 std::cout<<particleArray.get(5).getId()<<std::endl;
 std::cout<<intArray.get(5)<<std::endl;
+Particle p = particleArray[5];
+std::cout<<p.getId()<<std::endl;
 ```
