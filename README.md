@@ -41,5 +41,5 @@ particleArray.set(5,Particle(31415));
 
 std::cout<<particleArray.get(5).getId()<<std::endl;
 Particle p = particleArray[5];
-std::cout<<p.getId()<<std::endl; // or std::cout<<particleArray.get(5)<<std::endl;
+std::cout<<p.getId()<<std::endl
 ```
