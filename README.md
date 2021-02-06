@@ -3,6 +3,29 @@ Multi graphics card based C++ virtual array implementation that uses OpenCL just
 
 Wiki: https://github.com/tugrul512bit/VirtualMultiArray/wiki/How-it-works
 
+Simplest usage:
+```
+#include "GraphicsCardSupplyDepot.h"
+#include "VirtualMultiArray.h"
+
+
+// testing
+#include <iostream>
+
+
+int main(int argC, char ** argV)
+{
+	GraphicsCardSupplyDepot d;
+	VirtualMultiArray<int> intArr(1000,d.requestGpus(),10,5);
+	intArr[3]=5; // or intArr.set(3,5);
+	int var = intArr[3]; // or intArr.get(3);
+	std::cout<<var<<std::endl;
+	return 0;
+}
+```
+
+but its only optimized for medium to large sized objects due to pci-e bridge latency, for example a Particle class with x,y,z,vx,vy,vz,... fields is more efficient in access bandwidth than int.
+
 ```
 GraphicsCardSupplyDepot depot;
 
@@ -14,17 +37,9 @@ const int maxActivePagesPerGpu = 100;
 // uses RAM for paging (active pages)
 VirtualMultiArray<Particle> particleArray(n,depot.requestGpus(),pageSize,maxActivePagesPerGpu);
 
-VirtualMultiArray<int> intArray(1000000,depot.requestGpus(),100,10);
-
 particleArray.set(5,Particle(31415));
-intArray.set(0,3); // or intArray[0]=3;
-intArray.set(1,1); 
-intArray.set(2,4); 
-intArray.set(3,1);
-intArray.set(4,5); // or intArray[4]=5;
 
 std::cout<<particleArray.get(5).getId()<<std::endl;
-std::cout<<intArray.get(5)<<std::endl;
 Particle p = particleArray[5];
-std::cout<<p.getId()<<std::endl;
+std::cout<<p.getId()<<std::endl; // or std::cout<<particleArray.get(5)<<std::endl;
 ```
