@@ -94,7 +94,7 @@ public:
 				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: write buffer"<<std::endl;
+					std::cout<<"error: write buffer: "<<selectedPage<<std::endl;
 				}
 
 
@@ -102,7 +102,7 @@ public:
 				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer"<<std::endl;
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -114,7 +114,7 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer"<<std::endl;
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -155,7 +155,7 @@ public:
 				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer"<<std::endl;
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -166,13 +166,14 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer"<<std::endl;
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
 
 			}
 			sel.edit(index - selectedPage * szp, val);
+			sel.markAsEdited();
 		}
 
 	}

@@ -31,7 +31,9 @@ public:
 	// writing to an element of virtual array
 	// i: index of element
 	// val: element value to be written
-	void edit(const int & i, const T & val){ arr->getArray()[i]=val; edited=true; }
+	void edit(const int & i, const T & val){ arr->getArray()[i]=val;}
+
+	void markAsEdited(){  edited=true;  }
 
 	// checks if page is edited (if true, paging system will upload data to graphics card in case of a storage requirement of a different frozen page)
 	bool isEdited(){ return edited; }
