@@ -95,6 +95,7 @@ public:
 
 	}
 
+
 	// get data at index
 	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
 	T get(const size_t & index){
@@ -131,6 +132,8 @@ public:
 
 		void operator = (T val)  { ptr->set(idx,val); }
 		operator T(){ return ptr->get(idx); }
+
+		void operator = (SetterGetter sg){ ptr->set(idx,sg.ptr->get(sg.idx));  }
 	private:
 		size_t  idx;
 		VirtualMultiArray<T> * ptr;
@@ -138,11 +141,12 @@ public:
 	};
 
 	SetterGetter operator [](const size_t id) { return SetterGetter(id,this); }
+	T operator [](const size_t id) const { return get(id); }
 
 
-
-~VirtualMultiArray(){}
+	~VirtualMultiArray(){}
 private:
+
 std::shared_ptr<VirtualArray<T>> va;
 
 size_t pageSize;
