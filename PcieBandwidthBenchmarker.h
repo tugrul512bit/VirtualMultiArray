@@ -40,8 +40,8 @@ private:
 public:
 
 	// benchmarks system to find pcie performances
-	// megabytesPerCardAllowedForBenchmarking: each card is given this amount of data (in GB unit) during benchmark
-	PcieBandwidthBenchmarker(int megabytesPerCardAllowedForBenchmarking)
+	// megabytesPerCardAllowedForBenchmarking: each card is given this amount of data (in MB unit) during benchmark
+	PcieBandwidthBenchmarker(int megabytesPerCardAllowedForBenchmarking=128)
 	{
 		GraphicsCardSupplyDepot depot;
 		const size_t n = megabytesPerCardAllowedForBenchmarking*4; // for each test array (2 arrays below)
