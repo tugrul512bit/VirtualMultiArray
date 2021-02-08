@@ -51,7 +51,7 @@ public:
 					{
 
 							std::cout<<"error: debug mem size"<<std::endl;
-							vram.get()[i]=2;
+							vram.get()[i]=2; // assumes 2GB by default
 					}
 					else
 					{
@@ -71,7 +71,7 @@ public:
 							{
 								std::cout<<"VRAM: "<<memSize<<" bytes"<<std::endl;
 							}
-							vram.get()[i]=2;
+							vram.get()[i]=2; // assumes 2GB by default (only affects data distribution ratio, doesn't stop usage of >=2GB VRAM on this card)
 						}
 					}
 				}

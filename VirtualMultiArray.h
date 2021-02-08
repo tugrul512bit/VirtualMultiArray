@@ -22,6 +22,22 @@ class VirtualMultiArray
 {
 public:
 
+	// to choose
+	enum MemMult {
+
+		// equal data distribution on all gpu instances
+		// also uses user-defined values when memMult parameter is not empty
+		UseDefault=0,
+
+		// distribution ratios are equal to vram sizes of cards, (uses integer GB values, 2GB = 2, 1.9 GB = 1, 2.1GB = 2)
+		UseVramRatios=1,
+
+		// distribution ratio that reflects pci-e specs of cards to maximize bandwidth
+		// not-implemented
+		UsePcieRatios=2
+	};
+
+
 	// creates virtual array on a list of devices
 	// size: number of array elements (needs to be integer-multiple of pageSize)
 	// device: list of (physical) graphics cards that are used to generate multiple virtual cards to overlap multiple operations(device to host, host-to-device data copies) on them
@@ -33,38 +49,80 @@ public:
 	//          4) to disable a card, give it 0. {1,0,5} means first card is physical, second card is not used, third card will have intense pcie activity and VRAM consumption
 	//          5) every value in vector means extra RAM usage.
 	//          default: {4,4,...,4} all cards are given 4 data channels so total RAM usage becomes this: { nGpu * 4 * pageSize * sizeof(T) * numActivePage }
-	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50, std::vector<int> memMult=std::vector<int>()){
+	// mem:
+	// 			UseDefault = uses user-input values from "memMult" parameter,
+	//			UseVramRatios=allocates from gpus in tune with their vram sizes to maximize array capacity,
+	//			UsePcieRatios(not implemented)=allocation ratio for pcie specs to maximize bandwidth
+	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50, std::vector<int> memMult=std::vector<int>(), MemMult mem=MemMult::UseDefault){
 		int numPhysicalCard = device.size();
-
-
 
 		int nDevice = 0;
 		std::vector<int> gpuCloneMult;
-		if(memMult.size()==0)
+
+		if(MemMult::UseDefault==mem)
 		{
-			// auto distribution rate (all graphics cards take equal data)
-			for(int i=0;i<numPhysicalCard;i++)
+			if(memMult.size()==0)
 			{
-				gpuCloneMult.push_back(4); // every card becomes 4 virtual cards (for overlapping data transfers of opposite directions, performance)
-				nDevice+=4;
+				// auto distribution rate (all graphics cards take equal data)
+				for(int i=0;i<numPhysicalCard;i++)
+				{
+					gpuCloneMult.push_back(4); // every card becomes 4 virtual cards (for overlapping data transfers of opposite directions, performance)
+					nDevice+=4;
+
+				}
 			}
+			else
+			{
+				// user-defined memory usage per card, by multiplier-per-card
+				for(int i=0;i<numPhysicalCard;i++)
+				{
+					if(i<memMult.size())
+					{
+
+
+						gpuCloneMult.push_back(memMult[i]); // every card becomes 4*n virtual cards (for overlapping data transfers of opposite directions, performance)
+						nDevice += memMult[i];
+
+
+					}
+					else
+					{
+						gpuCloneMult.push_back(4); // every card becomes 4*n virtual cards (for overlapping data transfers of opposite directions, performance)
+						nDevice += 4;
+
+					}
+				}
+			}
+		}
+		else if (MemMult::UseVramRatios==mem)
+		{
+
+			if(memMult.size()==0)
+			{
+				for(int i=0;i<numPhysicalCard;i++)
+				{
+					int vram = device[i].vramSize();
+					gpuCloneMult.push_back(vram);
+					nDevice+=vram;
+
+				}
+			}
+			else
+			{
+				// user-defined memory usage per card, only taking 0 as disabler for a card
+				for(int i=0;i<numPhysicalCard;i++)
+				{
+					int vram = device[i].vramSize();
+					// user-unspecified gpus are assumed non-zero and over-specified elements are ignored
+					gpuCloneMult.push_back((memMult[i]>0)?vram:0);
+					nDevice += ((memMult[i]>0)?vram:0);
+				}
+			}
+
 		}
 		else
 		{
-			// user-defined memory usage per card, by multiplier-per-card
-			for(int i=0;i<numPhysicalCard;i++)
-			{
-				if(i<memMult.size())
-				{
-					gpuCloneMult.push_back(memMult[i]); // every card becomes 4*n virtual cards (for overlapping data transfers of opposite directions, performance)
-					nDevice += memMult[i];
-				}
-				else
-				{
-					gpuCloneMult.push_back(4); // every card becomes 4*n virtual cards (for overlapping data transfers of opposite directions, performance)
-					nDevice += 4;
-				}
-			}
+			throw std::invalid_argument("Not implemented: MemMult::UsePcieRatios");
 		}
 
 		if((size/pageSizeP)*pageSizeP !=size)
@@ -95,29 +153,37 @@ public:
 
 
 		int ctr = 0;
+		std::vector<int> actuallyUsedPhysicalGpuIndex;
+		actuallyUsedPhysicalGpuIndex.resize(numPhysicalCard);
+		int ctrPhysicalCard =0;
 		for(int i=0;i<numPhysicalCard;i++)
 		{
 			if(gpuCloneMult[i]>0)
 			{
-
+				actuallyUsedPhysicalGpuIndex[i]=ctr;
 				va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage);
 				ctr++;
 				gpuCloneMult[i]--;
+				ctrPhysicalCard++;
 			}
 		}
 		bool work = true;
+
 		while(work)
 		{
+			ctrPhysicalCard = 0;
 			work=false;
 			for(int i=0;i<numPhysicalCard;i++)
 			{
 				if(gpuCloneMult[i]>0)
 				{
-					{
-						va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[i].getContext(),device[i],pageSize,numActivePage);
-						ctr++;
-						gpuCloneMult[i]--;
-					}
+
+					int index = actuallyUsedPhysicalGpuIndex[i];
+					va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[index].getContext(),device[i],pageSize,numActivePage);
+					ctr++;
+					gpuCloneMult[i]--;
+					ctrPhysicalCard++;
+
 					work=true;
 				}
 			}
