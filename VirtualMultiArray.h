@@ -12,7 +12,7 @@
 #include<vector>
 #include<memory>
 #include<mutex>
-
+#include <stdexcept>
 
 #include"ClDevice.h"
 #include"VirtualArray.h"
@@ -35,6 +35,8 @@ public:
 	//          default: {4,4,...,4} all cards are given 4 data channels so total RAM usage becomes this: { nGpu * 4 * pageSize * sizeof(T) * numActivePage }
 	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50, std::vector<int> memMult=std::vector<int>()){
 		int numPhysicalCard = device.size();
+
+
 
 		int nDevice = 0;
 		std::vector<int> gpuCloneMult;
@@ -64,6 +66,17 @@ public:
 				}
 			}
 		}
+
+		if((size/pageSizeP)*pageSizeP !=size)
+		{
+			throw std::invalid_argument(std::string("Error :number of elements(")+std::to_string(size)+std::string(") need to be integer-multiple of page size(")+std::to_string(pageSizeP)+std::string(")."));
+		}
+
+		if(nDevice>size/pageSizeP)
+		{
+			throw std::invalid_argument(std::string("Error :number of pages(")+std::to_string(size/pageSizeP)+std::string(") must be equal to or greater than number of virtual gpu instances(")+std::to_string(nDevice)+std::string(")."));
+		}
+
 
 
 		numDevice=nDevice;
