@@ -181,12 +181,15 @@ public:
 
 	void copyValues(VirtualArray *d1,const VirtualArray & d2)
 	{
-
+		d1->sz = d2.sz;
+		d1->szp = d2.szp;
+		d1->nump = d2.nump;
 		d1->dv = d2.dv;
 		d1->ctx = d2.ctx;
 		d1->q = d2.q;
 		d1->gpu = d2.gpu;
 		d1->cpu = d2.cpu;
+
 	}
 
 	VirtualArray(VirtualArray & copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
@@ -204,14 +207,20 @@ public:
 		copyValues(this, copyDev);
 	}
 
+	VirtualArray<T> & operator = (const VirtualArray<T> & copyDev)
+	{
+		copyValues(this,copyDev);
+		return *this;
+	}
+
 
 	ClContext getContext(){ return *ctx; }
 
 	~VirtualArray(){}
 private:
-	const size_t sz;
-	const int szp;
-	const int nump;
+	size_t sz;
+	int szp;
+	int nump;
 	std::shared_ptr<ClDevice> dv;
 	std::shared_ptr<ClContext> ctx;
 	std::shared_ptr<ClCommandQueue> q;

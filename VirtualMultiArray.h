@@ -68,7 +68,10 @@ public:
 
 		numDevice=nDevice;
 		pageSize=pageSizeP;
-		va = std::shared_ptr<VirtualArray<T>>( new VirtualArray<T>[nDevice],[](VirtualArray<T> * ptr){ /* destructor is empty, so placement-new doesn't need it */ delete [] ptr;} );
+		va = std::shared_ptr<VirtualArray<T>>( new VirtualArray<T>[numDevice],[&](VirtualArray<T> * ptr){
+
+			delete [] ptr;
+		});
 		pageLock = std::shared_ptr<std::mutex>(new std::mutex[numDevice],[](std::mutex * ptr){delete [] ptr;});
 
 
@@ -76,31 +79,15 @@ public:
 		size_t numInterleave = (numPage/nDevice) + 1;
 		size_t extraAllocDeviceIndex = numPage%nDevice; // 0: all equal, 1: first device extra allocation, 2: second device, ...
 
-		/*
-		int ctr = 0;
-		for(int i=0;i<numPhysicalCard;i++)
-		{
-			if(gpuCloneMult[i]>0)
-			{
 
-				new(va.get()+ctr) VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage);
-				ctr++;
-				for(int j=0;j<gpuCloneMult[i]-1;j++)
-				{
-					new(va.get()+ctr) VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[ctr-j-1].getContext(),device[i],pageSize,numActivePage);
-					ctr++;
-				}
-			}
-		}
-		*/
 
 		int ctr = 0;
 		for(int i=0;i<numPhysicalCard;i++)
 		{
 			if(gpuCloneMult[i]>0)
 			{
-				// placement new on dynamically allocated memory, to unlock usage of const members in there without the = operator
-				/*va.get()[i]=*/new(va.get()+ctr) VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage);
+
+				va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage);
 				ctr++;
 				gpuCloneMult[i]--;
 			}
@@ -114,7 +101,7 @@ public:
 				if(gpuCloneMult[i]>0)
 				{
 					{
-						/*va.get()[i+1]=*/new(va.get()+ctr) VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[i].getContext(),device[i],pageSize,numActivePage);
+						va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[i].getContext(),device[i],pageSize,numActivePage);
 						ctr++;
 						gpuCloneMult[i]--;
 					}
@@ -175,12 +162,10 @@ public:
 
 	~VirtualMultiArray(){}
 private:
-
-std::shared_ptr<VirtualArray<T>> va;
-
-size_t pageSize;
-size_t numDevice;
-std::shared_ptr<std::mutex> pageLock;
+	size_t numDevice;
+	size_t pageSize;
+	std::shared_ptr<VirtualArray<T>> va;
+	std::shared_ptr<std::mutex> pageLock;
 };
 
 

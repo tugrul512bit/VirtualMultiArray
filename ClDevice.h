@@ -30,6 +30,7 @@ public:
 	// todo: add dedicated-vram query to separate integrated-gpus from this. intent is to save RAM, waste VRAM
 	ClDevice(cl_platform_id platform, bool debug=false)
 	{
+		n=std::make_shared<unsigned int>();
 		vram = std::shared_ptr<int>(new int[20],[&](int * ptr){ delete [] ptr; });
 		device = std::shared_ptr<cl_device_id>(new cl_device_id[20],[&](cl_device_id * ptr){
 			for(unsigned int i=0;i<*n;i++)
@@ -38,7 +39,7 @@ public:
 			}
 			delete [] ptr;
 		});
-		n=std::make_shared<unsigned int>();
+
 		if(CL_SUCCESS == clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU,20, device.get(), n.get()))
 		{
 
@@ -103,9 +104,10 @@ public:
 
 	~ClDevice(){}
 private:
+	std::shared_ptr<unsigned int> n;
 	std::shared_ptr<int> vram;
 	std::shared_ptr<cl_device_id> device;
-	std::shared_ptr<unsigned int> n;
+
 };
 
 
