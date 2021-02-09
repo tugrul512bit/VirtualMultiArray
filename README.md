@@ -4,7 +4,7 @@ Multi graphics card based C++ virtual array implementation that uses OpenCL just
 Wiki: https://github.com/tugrul512bit/VirtualMultiArray/wiki/How-it-works
 
 Simplest usage:
-```
+```cpp
 #include "GraphicsCardSupplyDepot.h"
 #include "VirtualMultiArray.h"
 
@@ -26,7 +26,7 @@ int main(int argC, char ** argV)
 
 but its only optimized for medium to large sized objects due to pci-e bridge latency, for example a Particle class with x,y,z,vx,vy,vz,... fields is more efficient in access bandwidth than int.
 
-```
+```cpp
 GraphicsCardSupplyDepot depot;
 
 const size_t n = 1024*10000;
