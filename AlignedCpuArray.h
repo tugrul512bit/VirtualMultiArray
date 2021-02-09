@@ -9,7 +9,9 @@
 #define ALIGNEDCPUARRAY_H_
 
 #include<iostream>
-#include<sys/mman.h>
+
+// just in case opencl-way of pinning fails
+//#include<sys/mman.h>
 
 #include"CL/cl.h"
 
