@@ -8,6 +8,7 @@
 #ifndef PAGE_H_
 #define PAGE_H_
 
+#include<vector>
 #include<memory>
 #include"ClCommandQueue.h"
 #include"ClContext.h"
@@ -27,6 +28,12 @@ public:
 	// reading an element of virtual array
 	// i: index of element
 	T get(const int & i){ return arr->getArray()[i]; }
+
+	// reading multiple elements, exclusively used for "read-only access", not guaranteed to be updated for concurrent read+write
+	const std::vector<T> getN(const int & i, const int & n){
+		const auto ptr = arr->getArray()+i;
+		return std::vector<T>(ptr,ptr+n);
+	}
 
 	// writing to an element of virtual array
 	// i: index of element

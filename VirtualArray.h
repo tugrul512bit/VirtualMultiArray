@@ -9,7 +9,7 @@
 #define VIRTUALARRAY_H_
 
 #include<memory>
-
+#include<vector>
 
 #include"ClPlatform.h"
 #include"ClDevice.h"
@@ -174,6 +174,63 @@ public:
 			}
 			sel.edit(index - selectedPage * szp, val);
 			sel.markAsEdited();
+		}
+
+	}
+
+
+
+	// array access for reading multiple elements beginning at an index
+	// n is guaranteed to no overflow by VirtualMultiArray's readOnlyGetN
+	std::vector<T> getN(const size_t & index,int n)
+	{
+		std::vector<T> result;
+		const size_t selectedPage = index/szp;
+		const int selectedActivePage = selectedPage % nump;
+		auto & sel = cpu.get()[selectedActivePage];
+		if(sel.getTargetGpuPage()==selectedPage)
+		{
+			return sel.getN(index - selectedPage * szp,n);
+		}
+		else
+		{
+
+			if(sel.isEdited())
+			{
+				// upload edited
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: write buffer: "<<selectedPage<<std::endl;
+				}
+
+
+				sel.setTargetGpuPage(selectedPage);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+
+			}
+			else
+			{
+				sel.setTargetGpuPage(selectedPage);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+
+
+			}
+			sel.reset();
+
+			return sel.getN(index - selectedPage * szp,n);
 		}
 
 	}

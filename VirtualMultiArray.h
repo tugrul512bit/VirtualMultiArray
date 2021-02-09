@@ -197,11 +197,9 @@ public:
 		const size_t selectedPage = index/pageSize;
 		const size_t numInterleave = selectedPage/numDevice;
 		const size_t selectedVirtualArray = selectedPage%numDevice;
-
 		const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
 
 		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
-
 		return va.get()[selectedVirtualArray].get(selectedElement);
 	}
 
@@ -211,11 +209,55 @@ public:
 		const size_t selectedPage = index/pageSize;
 		const size_t numInterleave = selectedPage/numDevice;
 		const size_t selectedVirtualArray = selectedPage%numDevice;
-
 		const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
-		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
 
+		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
 		va.get()[selectedVirtualArray].set(selectedElement,val);
+	}
+
+	// read N values starting at index
+	// do not use this concurrently with writes if you need all N elements be in same sync
+	// because this doesn't guarantee atomicity between all N elements
+	// otherwise there is no harm in using writes and this concurrently
+	// safe to use with other reads
+	std::vector<T> readOnlyGetN(const size_t & index, const size_t & n)
+	{
+		std::vector<T> result;
+		const size_t selectedPage = index/pageSize;
+		const size_t numInterleave = selectedPage/numDevice;
+		const size_t selectedVirtualArray = selectedPage%numDevice;
+		const size_t modIdx = index%pageSize;
+		const size_t selectedElement = numInterleave*pageSize + modIdx;
+		if(modIdx + n - 1 < pageSize)
+		{
+			// full read possible
+			std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+			return va.get()[selectedVirtualArray].getN(selectedElement,n);
+		}
+		else
+		{
+			size_t nToRead = n;
+			size_t maxThisPage = pageSize - modIdx;
+			size_t toBeCopied = std::min(nToRead,maxThisPage);
+
+			// read this page
+			{
+				std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+				std::vector<T> part = va.get()[selectedVirtualArray].getN(selectedElement,toBeCopied);
+				std::move(part.begin(),part.end(),std::back_inserter(result));
+				nToRead -= toBeCopied;
+			}
+
+			// repeat for other pages recursively
+			if(nToRead>0)
+			{
+				std::vector<T> part = readOnlyGetN(index+toBeCopied, nToRead);
+				std::move(part.begin(),part.end(),std::back_inserter(result));
+			}
+
+
+			return result;
+		}
 	}
 
 	class SetterGetter
