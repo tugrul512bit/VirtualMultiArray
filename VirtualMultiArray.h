@@ -9,6 +9,7 @@
 #ifndef VIRTUALMULTIARRAY_H_
 #define VIRTUALMULTIARRAY_H_
 
+#include<limits>
 #include<vector>
 #include<memory>
 #include<mutex>
@@ -220,6 +221,7 @@ public:
 	// because this doesn't guarantee atomicity between all N elements
 	// otherwise there is no harm in using writes and this concurrently
 	// safe to use with other reads
+	// also safe to use with writes as long as user explicitly orders operations with thread-safe pattern for N>pageSize
 	std::vector<T> readOnlyGetN(const size_t & index, const size_t & n)
 	{
 		std::vector<T> result;
@@ -259,6 +261,53 @@ public:
 			return result;
 		}
 	}
+
+
+	// write N values starting at index
+	// do not use this concurrently with reads if you need all N elements be in same sync
+	// because this doesn't guarantee atomicity between all N elements
+	// otherwise there is no harm(except for consistency) in using reads/writes and this concurrently as long as thread-safety is given by user
+	// there is only page-level thread-safety here (automatically elements within page too) so its not N-level thread-safe when N>pageSize
+	// val: element values to write
+	// valIndex: index of first element (in val) to copy
+	// nVal: number of elements to copy starting at index valIndex
+	void writeOnlySetN(const size_t & index, const std::vector<T> & val, const size_t & valIndex=0, const size_t & nVal=(size_t)-1)
+	{
+		const size_t n = ((nVal==(size_t)-1)?val.size():nVal);
+		const size_t selectedPage = index/pageSize;
+		const size_t numInterleave = selectedPage/numDevice;
+		const size_t selectedVirtualArray = selectedPage%numDevice;
+		const size_t modIdx = index%pageSize;
+		const size_t selectedElement = numInterleave*pageSize + modIdx;
+		if(modIdx + n - 1 < pageSize)
+		{
+			// full write possible
+			std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+			va.get()[selectedVirtualArray].setN(selectedElement,val,valIndex,n);
+		}
+		else
+		{
+			size_t nToWrite = n;
+			size_t maxThisPage = pageSize - modIdx;
+			size_t toBeCopied = std::min(nToWrite,maxThisPage);
+
+			// write this page
+			{
+				std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+				va.get()[selectedVirtualArray].setN(selectedElement,val,valIndex, toBeCopied);
+				nToWrite -= toBeCopied;
+			}
+
+			// repeat for other pages recursively
+			if(nToWrite>0)
+			{
+				writeOnlySetN(index+toBeCopied, val, valIndex+toBeCopied, nToWrite);
+			}
+
+		}
+	}
+
+
 
 	class SetterGetter
 	{

@@ -29,7 +29,7 @@ public:
 	// i: index of element
 	T get(const int & i){ return arr->getArray()[i]; }
 
-	// reading multiple elements, exclusively used for "read-only access", not guaranteed to be updated for concurrent read+write
+	// reading multiple elements, exclusively used for "read-only access",
 	const std::vector<T> getN(const int & i, const int & n){
 		const auto ptr = arr->getArray()+i;
 		return std::vector<T>(ptr,ptr+n);
@@ -39,6 +39,11 @@ public:
 	// i: index of element
 	// val: element value to be written
 	void edit(const int & i, const T & val){ arr->getArray()[i]=val;}
+
+	// writing multiple elements, exclusively used for "write-only access",
+	void editN(const int & i, const std::vector<T> & val, const size_t & valIndex, const size_t & n){
+		std::copy(val.begin()+valIndex,val.begin()+valIndex+n,arr->getArray()+i);
+	}
 
 	void markAsEdited(){  edited=true;  }
 

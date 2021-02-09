@@ -236,6 +236,58 @@ public:
 	}
 
 
+	// array access for writing to an element at an index
+	// val: value to write to array
+	void setN(const size_t & index, const std::vector<T> & val, const size_t & valIndex, const size_t n)
+	{
+		const size_t selectedPage = index/szp;
+		const int selectedActivePage = selectedPage % nump;
+		auto & sel = cpu.get()[selectedActivePage];
+		if(sel.getTargetGpuPage()==selectedPage)
+		{
+			sel.editN(index - selectedPage * szp, val,valIndex,n);
+		}
+		else
+		{
+			if(sel.isEdited())
+			{
+
+				// upload edited
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: write buffer"<<std::endl;
+				}
+
+
+				sel.setTargetGpuPage(selectedPage);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+			}
+			else
+			{
+				sel.setTargetGpuPage(selectedPage);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+
+			}
+			sel.editN(index - selectedPage * szp, val, valIndex, n);
+			sel.markAsEdited();
+		}
+
+	}
+
+
 	void copyValues(VirtualArray *d1,const VirtualArray & d2)
 	{
 		d1->sz = d2.sz;
