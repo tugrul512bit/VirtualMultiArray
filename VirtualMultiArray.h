@@ -54,7 +54,9 @@ public:
 	// 			UseDefault = uses user-input values from "memMult" parameter,
 	//			UseVramRatios=allocates from gpus in tune with their vram sizes to maximize array capacity,
 	//			UsePcieRatios(not implemented)=allocation ratio for pcie specs to maximize bandwidth
-	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50, std::vector<int> memMult=std::vector<int>(), MemMult mem=MemMult::UseDefault){
+	// usePinnedArraysOnly: pins all active-page buffers to stop OS paging them in/out while doing gpu copies (pageable buffers are slower but need less *resources*)
+	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50,
+			std::vector<int> memMult=std::vector<int>(), MemMult mem=MemMult::UseDefault, const bool usePinnedArraysOnly=true){
 		int numPhysicalCard = device.size();
 
 		int nDevice = 0;
@@ -162,7 +164,7 @@ public:
 			if(gpuCloneMult[i]>0)
 			{
 				actuallyUsedPhysicalGpuIndex[i]=ctr;
-				va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage);
+				va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage,usePinnedArraysOnly);
 				ctr++;
 				gpuCloneMult[i]--;
 				ctrPhysicalCard++;
@@ -180,7 +182,7 @@ public:
 				{
 
 					int index = actuallyUsedPhysicalGpuIndex[i];
-					va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[index].getContext(),device[i],pageSize,numActivePage);
+					va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[index].getContext(),device[i],pageSize,numActivePage,usePinnedArraysOnly);
 					ctr++;
 					gpuCloneMult[i]--;
 					ctrPhysicalCard++;

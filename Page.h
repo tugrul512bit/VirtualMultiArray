@@ -23,7 +23,7 @@ public:
 	Page(){arr=nullptr; edited=false;targetGpuPage=-1;}
 
 	// allocates pinned array for a "page", uses opencl way of pinning the array and is meant to be used in its own command queue
-	Page(int sz,ClContext ctxP, ClCommandQueue cqP){ arr=std::shared_ptr<AlignedCpuArray<T>>(new AlignedCpuArray<T>(*ctxP.ctxPtr(),cqP.getQueue(),sz,4096,true)); edited=false; targetGpuPage=-1;}
+	Page(int sz,ClContext ctxP, ClCommandQueue cqP, const bool usePinnedArraysOnly=true){ arr=std::shared_ptr<AlignedCpuArray<T>>(new AlignedCpuArray<T>(*ctxP.ctxPtr(),cqP.getQueue(),sz,4096,usePinnedArraysOnly)); edited=false; targetGpuPage=-1;}
 
 	// reading an element of virtual array
 	// i: index of element

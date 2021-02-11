@@ -33,7 +33,7 @@ public:
 	// device: opencl wrapper that contains only 1 graphics card
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
-	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50):sz(sizeP),szp(sizePageP),nump(numActivePageP){
+	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		dv = std::make_shared<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= std::make_shared<ClContext>(*dv,0);
@@ -43,7 +43,7 @@ public:
 		cpu= std::shared_ptr<Page<T>>(new Page<T>[nump],[](Page<T> * ptr){delete [] ptr;});
 		for(int i=0;i<nump;i++)
 		{
-			cpu.get()[i]=Page<T>(szp,*ctx,*q);
+			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
 	}
 
@@ -54,7 +54,7 @@ public:
 	// device: opencl wrapper that contains only 1 graphics card
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
-	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50):sz(sizeP),szp(sizePageP),nump(numActivePageP){
+	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 
 		dv = std::make_shared<ClDevice>();
 
@@ -70,7 +70,7 @@ public:
 
 		for(int i=0;i<nump;i++)
 		{
-			cpu.get()[i]=Page<T>(szp,*ctx,*q);
+			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
 
 	}
