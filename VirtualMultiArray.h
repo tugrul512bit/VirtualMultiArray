@@ -356,7 +356,7 @@ public:
 				currentRange = std::min(remainingRange,remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
-				std::cout<<" page:"<<selectedPage<<"  element:"<<currentIndex<<"  range:"<<currentRange<<" va:"<<selectedVirtualArray<<"   bufIdx:"<<currentBufElm<<"  rem:"<<remainingPageElm<<std::endl;
+
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
@@ -392,7 +392,7 @@ public:
 				currentRange = std::min(remainingRange,remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
-				std::cout<<" page:"<<selectedPage<<"  element:"<<currentIndex<<"  range:"<<currentRange<<" va:"<<selectedVirtualArray<<"   bufIdx:"<<currentBufElm<<"  rem:"<<remainingPageElm<<std::endl;
+
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
