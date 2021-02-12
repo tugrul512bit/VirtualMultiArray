@@ -197,7 +197,7 @@ public:
 
 	// get data at index
 	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
-	T get(const size_t & index){
+	T get(const size_t & index) const{
 		const size_t selectedPage = index/pageSize;
 		const size_t numInterleave = selectedPage/numDevice;
 		const size_t selectedVirtualArray = selectedPage%numDevice;
@@ -209,7 +209,7 @@ public:
 
 	// put data to index
 	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
-	void set(const size_t & index, const T & val){
+	void set(const size_t & index, const T & val) const{
 		const size_t selectedPage = index/pageSize;
 		const size_t numInterleave = selectedPage/numDevice;
 		const size_t selectedVirtualArray = selectedPage%numDevice;
@@ -225,7 +225,7 @@ public:
 	// otherwise there is no harm in using writes and this concurrently
 	// safe to use with other reads
 	// also safe to use with writes as long as user explicitly orders operations with thread-safe pattern for N>pageSize
-	std::vector<T> readOnlyGetN(const size_t & index, const size_t & n)
+	std::vector<T> readOnlyGetN(const size_t & index, const size_t & n) const
 	{
 		std::vector<T> result;
 		const size_t selectedPage = index/pageSize;
@@ -274,7 +274,7 @@ public:
 	// val: element values to write
 	// valIndex: index of first element (in val) to copy
 	// nVal: number of elements to copy starting at index valIndex
-	void writeOnlySetN(const size_t & index, const std::vector<T> & val, const size_t & valIndex=0, const size_t & nVal=(size_t)-1)
+	void writeOnlySetN(const size_t & index, const std::vector<T> & val, const size_t & valIndex=0, const size_t & nVal=(size_t)-1) const
 	{
 		const size_t n = ((nVal==(size_t)-1)?val.size():nVal);
 		const size_t selectedPage = index/pageSize;
