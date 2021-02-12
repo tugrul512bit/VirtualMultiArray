@@ -316,17 +316,15 @@ public:
 
 
 
-	// gets data from elements [index - index+range)
-	// allocates an aligned buffer of same length with latest data bits (user is responsible for thread-safe operation), do not overlap same region with concurrent ops.
-	// executes function on the buffer
-	// writes updated data back to same pages (again, user is responsible for not overlapping same region with other operations concurrently)
-	// overwrites all elements to same pages that were written during mapping/computing/unmapping
-	// index: start element of buffer which is aligned at 4096
+	// gpu --> aligned buffer  ---> user function ---> gpu (user needs to take care of thread-safety of whole mapped region)
+	// index: start element of buffer (which is 4096-aligned)
 	// range: size of aligned buffer with data from virtual array
 	// f: function to run for processing buffer
+	//          the pointer given to user-function is not zero-based (but an offseted version of it to match same index access from outside)
 	// pinBuffer: true=pins buffer to stop OS paging it/probably faster data copies, false=no pinning / probably less latency to start function
-	// todo: implement this
-	void mappedReadWriteAccess(const size_t index, const size_t range, std::function<void(T * const)> f, const bool pinBuffer=false) const
+	// read: true=latest data from virtual array is read into buffer (+latency). default = true
+	// write: true=latest data from aligned buffer is written to virtual array (+latency). default = true
+	void mappedReadWriteAccess(const size_t index, const size_t range, std::function<void(T * const)> f, const bool pinBuffer=false, const bool read=true, const bool write=true) const
 	{
 
 		// allocate aligned buffer (for SIMD operations, faster copies to some devices)
@@ -343,6 +341,7 @@ public:
 
 
 		// get data from gpu
+		if(read)
 		{
 			size_t indexStartPage = index / pageSize;
 			size_t indexEndPage = (index+range)/pageSize;
@@ -374,9 +373,11 @@ public:
 		}
 
 		// execute function
-		f(arr.get());
+		// -index offset matches origins of buffer and virtual array such that buf[i] = va[i] for all elements
+		f(arr.get()-index);
 
 		// get data to gpu
+		if(write)
 		{
 			size_t indexStartPage = index / pageSize;
 			size_t indexEndPage = (index+range)/pageSize;
