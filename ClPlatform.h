@@ -21,6 +21,7 @@ public:
 	{
 		platform = std::shared_ptr<cl_platform_id>(new cl_platform_id[5],[](cl_platform_id * ptr)
 		{
+			// opencl-c binding doesn't have release-platform
 			delete [] ptr;
 		});
 		n=std::make_shared<unsigned int>();

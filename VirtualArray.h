@@ -94,7 +94,7 @@ public:
 				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: write buffer: "<<selectedPage<<std::endl;
+					std::cout<<"error: (edited)write buffer: "<<selectedPage<<std::endl;
 				}
 
 
@@ -102,7 +102,7 @@ public:
 				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+					std::cout<<"error: (edited)read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -114,7 +114,7 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+					std::cout<<"error: (non-edited)read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -147,7 +147,7 @@ public:
 				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: write buffer"<<std::endl;
+					std::cout<<"set-error: (edited)write buffer: "<<selectedPage<<std::endl;
 				}
 
 
@@ -155,7 +155,7 @@ public:
 				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+					std::cout<<"set-error: (edited)read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -166,7 +166,7 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+					std::cout<<"set-error: (non-edited)read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -201,7 +201,7 @@ public:
 				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: write buffer: "<<selectedPage<<std::endl;
+					std::cout<<"get-error: write buffer: "<<selectedPage<<std::endl;
 				}
 
 
@@ -209,7 +209,7 @@ public:
 				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+					std::cout<<"get-error: read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -221,7 +221,7 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: read buffer: "<<selectedPage<<std::endl;
+					std::cout<<"get-error: read buffer: "<<selectedPage<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -288,40 +288,8 @@ public:
 	}
 
 
-	void copyValues(VirtualArray *d1,const VirtualArray & d2)
-	{
-		d1->sz = d2.sz;
-		d1->szp = d2.szp;
-		d1->nump = d2.nump;
-		d1->dv = d2.dv;
-		d1->ctx = d2.ctx;
-		d1->q = d2.q;
-		d1->gpu = d2.gpu;
-		d1->cpu = d2.cpu;
-
-	}
-
-	VirtualArray(VirtualArray & copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
-	{
-		copyValues(this, copyDev);
-	}
-
-	VirtualArray(const VirtualArray & copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
-	{
-		copyValues(this, copyDev);
-	}
-
-	VirtualArray(VirtualArray && copyDev):sz(copyDev.sz),szp(copyDev.szp),nump(copyDev.nump)
-	{
-		copyValues(this, copyDev);
-	}
-
-	VirtualArray<T> & operator = (const VirtualArray<T> & copyDev)
-	{
-		copyValues(this,copyDev);
-		return *this;
-	}
-
+	// this class only meant to be inside VirtualMultiArray and only constructed once so, only needs to be moved only once
+    VirtualArray& operator=(VirtualArray&&) = default;
 
 	ClContext getContext(){ return *ctx; }
 

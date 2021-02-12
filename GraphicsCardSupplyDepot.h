@@ -15,6 +15,7 @@
 #include"ClDevice.h"
 
 // prepares a list of graphics card found in system
+// is not needed to be spanning VirtualMultiArray. Once  VirtualMultiArray is constructed, it contains its own resource managemennt
 class GraphicsCardSupplyDepot
 {
 public:
@@ -36,7 +37,8 @@ public:
 	}
 
 	// gets list of already-prepared graphics cards
-	// can be used on multiple VirtualMultiArray instances
+	// can be used for multiple VirtualMultiArray instances
+	// ClDevices share same raw device-pointer under the hood
 	std::vector<ClDevice> requestGpus(){ return *deviceVecPtr; }
 
 	~GraphicsCardSupplyDepot()

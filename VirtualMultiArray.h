@@ -38,6 +38,7 @@ public:
 		UsePcieRatios=2
 	};
 
+	VirtualMultiArray():numDevice(0),pageSize(0),va(nullptr),pageLock(nullptr){};
 
 	// creates virtual array on a list of devices
 	// size: number of array elements (needs to be integer-multiple of pageSize)
