@@ -312,6 +312,23 @@ public:
 
 
 
+	// locks all pages that are touching [index - index+range)
+	// executes function
+	// releases locks
+	// todo: implement this
+	template<typename Func>
+	void mappedReadWriteAccess(const size_t index, const size_t range, Func f) const
+	{
+		// - get list of locks (this gives time for other threads to do their thing)
+
+		// - lock all elements in list
+
+		// execute function
+
+		// - unlock all with reverse order
+		throw std::invalid_argument("Error: mapped access is not implemented yet");
+	}
+
 	class SetterGetter
 	{
 	public:
