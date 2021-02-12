@@ -14,6 +14,10 @@
 #include<memory>
 #include<mutex>
 #include <stdexcept>
+#include <functional>
+
+// this is for mappedReadWriteAccess --> for linux
+#include<sys/mman.h>
 
 #include"ClDevice.h"
 #include"VirtualArray.h"
@@ -312,21 +316,102 @@ public:
 
 
 
-	// locks all pages that are touching [index - index+range)
-	// executes function
-	// releases locks
+	// gets data from elements [index - index+range)
+	// allocates an aligned buffer of same length with latest data bits (user is responsible for thread-safe operation), do not overlap same region with concurrent ops.
+	// executes function on the buffer
+	// writes updated data back to same pages (again, user is responsible for not overlapping same region with other operations concurrently)
+	// overwrites all elements to same pages that were written during mapping/computing/unmapping
+	// index: start element of buffer which is aligned at 4096
+	// range: size of aligned buffer with data from virtual array
+	// f: function to run for processing buffer
+	// pinBuffer: true=pins buffer to stop OS paging it/probably faster data copies, false=no pinning / probably less latency to start function
 	// todo: implement this
-	template<typename Func>
-	void mappedReadWriteAccess(const size_t index, const size_t range, Func f) const
+	void mappedReadWriteAccess(const size_t index, const size_t range, std::function<void(T * const)> f, const bool pinBuffer=false) const
 	{
-		// - get list of locks (this gives time for other threads to do their thing)
 
-		// - lock all elements in list
+		// allocate aligned buffer (for SIMD operations, faster copies to some devices)
+		std::unique_ptr<T [],void(*)(void *)> arr=std::unique_ptr<T [],void(*)(void *)>((T *)aligned_alloc(4096,sizeof(T)*range),free);
+
+		// lock the buffer so that it will not be paged out by OS during function
+		if(pinBuffer)
+		{
+			if(ENOMEM==mlock(arr.get(),range))
+			{
+				throw std::invalid_argument("Error: memory pinning failed.");
+			}
+		}
+
+
+		// get data from gpu
+		{
+			size_t indexStartPage = index / pageSize;
+			size_t indexEndPage = (index+range)/pageSize;
+			size_t currentIndex = index;
+			size_t remainingRange = range;
+			size_t remainingPageElm = pageSize;
+			size_t currentRange = 0;
+			size_t currentBufElm = 0;
+			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
+			{
+				remainingPageElm = pageSize - (currentIndex % pageSize);
+				currentRange = std::min(remainingRange,remainingPageElm);
+
+				const size_t selectedVirtualArray = selectedPage%numDevice;
+				std::cout<<" page:"<<selectedPage<<"  element:"<<currentIndex<<"  range:"<<currentRange<<" va:"<<selectedVirtualArray<<"   bufIdx:"<<currentBufElm<<"  rem:"<<remainingPageElm<<std::endl;
+				if(currentRange>0)
+				{
+					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+					va.get()[selectedVirtualArray].copyToBuffer(currentIndex, currentRange, arr.get()+currentBufElm);
+				}
+				else
+				{
+					break;
+				}
+				currentBufElm += currentRange;
+				currentIndex += currentRange;
+				remainingRange -= currentRange;
+			}
+		}
 
 		// execute function
+		f(arr.get());
 
-		// - unlock all with reverse order
-		throw std::invalid_argument("Error: mapped access is not implemented yet");
+		// get data to gpu
+		{
+			size_t indexStartPage = index / pageSize;
+			size_t indexEndPage = (index+range)/pageSize;
+			size_t currentIndex = index;
+			size_t remainingRange = range;
+			size_t remainingPageElm = pageSize;
+			size_t currentRange = 0;
+			size_t currentBufElm = 0;
+			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
+			{
+				remainingPageElm = pageSize - (currentIndex % pageSize);
+				currentRange = std::min(remainingRange,remainingPageElm);
+
+				const size_t selectedVirtualArray = selectedPage%numDevice;
+				std::cout<<" page:"<<selectedPage<<"  element:"<<currentIndex<<"  range:"<<currentRange<<" va:"<<selectedVirtualArray<<"   bufIdx:"<<currentBufElm<<"  rem:"<<remainingPageElm<<std::endl;
+				if(currentRange>0)
+				{
+					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+					va.get()[selectedVirtualArray].copyFromBuffer(currentIndex, currentRange, arr.get()+currentBufElm);
+				}
+				else
+				{
+					break;
+				}
+				currentBufElm += currentRange;
+				currentIndex += currentRange;
+				remainingRange -= currentRange;
+			}
+		}
+
+		// unlock pinning
+		if(pinBuffer)
+		{
+			munlock(arr.get(),range);
+		}
 	}
 
 	class SetterGetter

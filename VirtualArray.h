@@ -106,7 +106,6 @@ public:
 				}
 				// download new
 				clFinish(q->getQueue());
-
 			}
 			else
 			{
@@ -137,12 +136,12 @@ public:
 		if(sel.getTargetGpuPage()==selectedPage)
 		{
 			sel.edit(index - selectedPage * szp, val);
+			sel.markAsEdited();
 		}
 		else
 		{
 			if(sel.isEdited())
 			{
-
 				// upload edited
 				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
@@ -246,12 +245,12 @@ public:
 		if(sel.getTargetGpuPage()==selectedPage)
 		{
 			sel.editN(index - selectedPage * szp, val,valIndex,n);
+			sel.markAsEdited();
 		}
 		else
 		{
 			if(sel.isEdited())
 			{
-
 				// upload edited
 				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
@@ -282,6 +281,120 @@ public:
 
 			}
 			sel.editN(index - selectedPage * szp, val, valIndex, n);
+			sel.markAsEdited();
+		}
+
+	}
+
+
+
+
+	// array access for reading many elements directly through raw pointer
+	// without allocating any buffer
+	// index: starting element
+	// range: number of elements to read into out parameter
+	// out: target array to be filled with data
+	void copyToBuffer(const size_t & index, const size_t & range, T * const out)
+	{
+		const size_t selectedPage = index/szp;
+		const int selectedActivePage = selectedPage % nump;
+		auto & sel = cpu.get()[selectedActivePage];
+		if(sel.getTargetGpuPage()==selectedPage)
+		{
+			sel.readN(out,index - selectedPage * szp,range);
+		}
+		else
+		{
+
+			if(sel.isEdited())
+			{
+				// upload edited
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: (edited)write buffer (copyToBuffer): "<<selectedPage<<std::endl;
+				}
+
+
+				sel.setTargetGpuPage(selectedPage);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: (edited)read buffer (copyToBuffer): "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+			}
+			else
+			{
+				sel.setTargetGpuPage(selectedPage);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: (non-edited)read buffer (copyToBuffer): "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+
+
+			}
+			sel.reset();
+			sel.readN(out,index - selectedPage * szp,range);
+		}
+
+	}
+
+	// array access for reading many elements directly through raw pointer
+	// without allocating any buffer
+	// index: starting element
+	// range: number of elements to read into out parameter
+	// out: target array to be filled with data
+	void copyFromBuffer(const size_t & index, const size_t & range, T * const in)
+	{
+		const size_t selectedPage = index/szp;
+		const int selectedActivePage = selectedPage % nump;
+		auto & sel = cpu.get()[selectedActivePage];
+		if(sel.getTargetGpuPage()==selectedPage)
+		{
+			sel.writeN(in, index - selectedPage * szp, range);
+			sel.markAsEdited();
+		}
+		else
+		{
+
+			if(sel.isEdited())
+			{
+				// upload edited
+				cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: (edited)write buffer (copyToBuffer): "<<selectedPage<<std::endl;
+				}
+
+
+				sel.setTargetGpuPage(selectedPage);
+				err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: (edited)read buffer (copyToBuffer): "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+			}
+			else
+			{
+				sel.setTargetGpuPage(selectedPage);
+				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"error: (non-edited)read buffer (copyToBuffer): "<<selectedPage<<std::endl;
+				}
+				// download new
+				clFinish(q->getQueue());
+
+
+			}
+			sel.writeN(in, index - selectedPage * szp, range);
 			sel.markAsEdited();
 		}
 

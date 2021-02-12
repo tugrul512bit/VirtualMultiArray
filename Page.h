@@ -41,9 +41,23 @@ public:
 	void edit(const int & i, const T & val){ arr->getArray()[i]=val;}
 
 	// writing multiple elements, exclusively used for "write-only access",
-	void editN(const int & i, const std::vector<T> & val, const size_t & valIndex, const size_t & n){
+	void editN(const int & i, const std::vector<T> & val, const size_t & valIndex, const size_t & n)
+	{
 		std::copy(val.begin()+valIndex,val.begin()+valIndex+n,arr->getArray()+i);
 	}
+
+	// only copying, no allocation
+	void readN(T * const out, const int & i, const int & n){
+		const auto ptr = arr->getArray()+i;
+		std::copy(ptr,ptr+n,out);
+	}
+
+	// only copying, no allocation
+	void writeN(T * const in, const int & i, const size_t & n)
+	{
+		std::copy(in,in+n,arr->getArray()+i);
+	}
+
 
 	void markAsEdited(){  edited=true;  }
 
