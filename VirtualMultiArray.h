@@ -350,7 +350,7 @@ public:
 			size_t remainingPageElm = pageSize;
 			size_t currentRange = 0;
 			size_t currentBufElm = 0;
-			for(size_t selectedPage = indexStartPage; selectedPage<indexEndPage; selectedPage++)
+			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
 			{
 				remainingPageElm = pageSize - (currentIndex % pageSize);
 				currentRange = std::min(remainingRange,remainingPageElm);
@@ -387,7 +387,7 @@ public:
 			size_t remainingPageElm = pageSize;
 			size_t currentRange = 0;
 			size_t currentBufElm = 0;
-			for(size_t selectedPage = indexStartPage; selectedPage<indexEndPage; selectedPage++)
+			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
 			{
 				remainingPageElm = pageSize - (currentIndex % pageSize);
 				currentRange = std::min(remainingRange,remainingPageElm);
