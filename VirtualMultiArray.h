@@ -350,14 +350,14 @@ public:
 			size_t remainingPageElm = pageSize;
 			size_t currentRange = 0;
 			size_t currentBufElm = 0;
-			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
+			for(size_t selectedPage = indexStartPage; selectedPage<indexEndPage; selectedPage++)
 			{
 				remainingPageElm = pageSize - (currentIndex % pageSize);
 				currentRange = std::min(remainingRange,remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
 				const size_t numInterleave = selectedPage/numDevice;
-				const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
+				const size_t selectedElement = numInterleave*pageSize + (currentIndex%pageSize);
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
@@ -387,18 +387,18 @@ public:
 			size_t remainingPageElm = pageSize;
 			size_t currentRange = 0;
 			size_t currentBufElm = 0;
-			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
+			for(size_t selectedPage = indexStartPage; selectedPage<indexEndPage; selectedPage++)
 			{
 				remainingPageElm = pageSize - (currentIndex % pageSize);
 				currentRange = std::min(remainingRange,remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
 				const size_t numInterleave = selectedPage/numDevice;
-				const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
+				const size_t selectedElement = numInterleave*pageSize + (currentIndex%pageSize);
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
-					va.get()[selectedVirtualArray].copyFromBuffer(currentIndex, currentRange, arr.get()+currentBufElm);
+					va.get()[selectedVirtualArray].copyFromBuffer(selectedElement, currentRange, arr.get()+currentBufElm);
 				}
 				else
 				{
