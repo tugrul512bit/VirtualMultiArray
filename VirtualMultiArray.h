@@ -356,11 +356,12 @@ public:
 				currentRange = std::min(remainingRange,remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
-
+				const size_t numInterleave = selectedPage/numDevice;
+				const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
-					va.get()[selectedVirtualArray].copyToBuffer(currentIndex, currentRange, arr.get()+currentBufElm);
+					va.get()[selectedVirtualArray].copyToBuffer(selectedElement, currentRange, arr.get()+currentBufElm);
 				}
 				else
 				{
@@ -392,7 +393,8 @@ public:
 				currentRange = std::min(remainingRange,remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
-
+				const size_t numInterleave = selectedPage/numDevice;
+				const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);

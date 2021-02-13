@@ -331,7 +331,7 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: (non-edited)read buffer (copyToBuffer): "<<selectedPage<<std::endl;
+					std::cout<<"error: (non-edited)read buffer (copyToBuffer): "<<selectedPage<<" err code:"<<err<<"  byte index="<<sizeof(T) * selectedPage * szp<<"  ptr:"<<((size_t)sel.ptr())<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
@@ -387,7 +387,7 @@ public:
 				cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T) * selectedPage * szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"error: (non-edited)read buffer (copyToBuffer): "<<selectedPage<<std::endl;
+					std::cout<<"error: (non-edited)read buffer (copyToBuffer): "<<selectedPage<<" err code:"<<err<<"  byte index="<<sizeof(T) * selectedPage * szp<<"  ptr:"<<((size_t)sel.ptr())<<std::endl;
 				}
 				// download new
 				clFinish(q->getQueue());
