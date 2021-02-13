@@ -328,7 +328,7 @@ public:
 	{
 
 		// allocate aligned buffer (for SIMD operations, faster copies to some devices)
-		std::unique_ptr<T [],void(*)(void *)> arr=std::unique_ptr<T [],void(*)(void *)>((T *)aligned_alloc(4096,sizeof(T)*range),free);
+		std::unique_ptr<T [],void(*)(void *)> arr=std::unique_ptr<T [],void(*)(void *)>((T *)aligned_alloc((index*sizeof(T))%4096,sizeof(T)*range),free);
 
 		// lock the buffer so that it will not be paged out by OS during function
 		if(pinBuffer)
