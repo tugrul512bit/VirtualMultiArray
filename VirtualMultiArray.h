@@ -319,21 +319,51 @@ public:
 	// gpu --> aligned buffer  ---> user function ---> gpu (user needs to take care of thread-safety of whole mapped region)
 	// index: start element of buffer (which is 4096-aligned)
 	// range: size of aligned buffer with data from virtual array
-	// f: function to run for processing buffer
+	// f: user-defined (lambda or another)function to run for processing buffer
 	//          the pointer given to user-function is not zero-based (but an offseted version of it to match same index access from outside)
 	// pinBuffer: true=pins buffer to stop OS paging it/probably faster data copies, false=no pinning / probably less latency to start function
 	// read: true=latest data from virtual array is read into buffer (+latency). default = true
 	// write: true=latest data from aligned buffer is written to virtual array (+latency). default = true
-	void mappedReadWriteAccess(const size_t index, const size_t range, std::function<void(T * const)> f, const bool pinBuffer=false, const bool read=true, const bool write=true) const
+	// userPtr: when user needs to evade allocation/free latency on each mapping call, this parameter can be used
+	//               if userPtr == nullptr (default), internal allocation is done
+	//               if userPtr != nullptr, userPtr is used as internal data copies and is not same address value given to the user function
+	//               		array.mappedReadWriteAccess(...[&](T * ptr){  ..compute using ptr[some_index] but not myRawPointer[some_index]..  },myRawPointer);
+	//               userPtr needs to be valid between (T *) index and (T *) index + range
+	void mappedReadWriteAccess(const size_t index, const size_t range,
+								std::function<void(T * const)> f,
+								const bool pinBuffer=false,
+								const bool read=true,
+								const bool write=true,
+								T * const userPtr=nullptr) const
 	{
 
-		// allocate aligned buffer (for SIMD operations, faster copies to some devices)
-		std::unique_ptr<T [],void(*)(void *)> arr=std::unique_ptr<T [],void(*)(void *)>((T *)aligned_alloc((index*sizeof(T))%4096,sizeof(T)*range),free);
+		struct TempMem
+		{
+			TempMem():buf(nullptr){ }
+			TempMem(T * __restrict__ const mem):buf(mem){}
+			T * __restrict__ const buf;
+		};
+
+
+
+
+		std::unique_ptr<T,void(*)(void *)> arr(nullptr,free);
+		if(nullptr == userPtr)
+		{
+			arr = std::unique_ptr<T,void(*)(void *)>((T *)aligned_alloc(/* (index*sizeof(T))%4096*/ 4096,sizeof(T)*range),free);
+
+		}
+
+
+
+		// temporarily allocate aligned buffer (for SIMD operations, faster copies to some devices)
+		const TempMem mem((nullptr == userPtr)?(arr.get()):userPtr);
+
 
 		// lock the buffer so that it will not be paged out by OS during function
 		if(pinBuffer)
 		{
-			if(ENOMEM==mlock(arr.get(),range))
+			if(ENOMEM==mlock(mem.buf,range))
 			{
 				throw std::invalid_argument("Error: memory pinning failed.");
 			}
@@ -361,7 +391,7 @@ public:
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
-					va.get()[selectedVirtualArray].copyToBuffer(selectedElement, currentRange, arr.get()+currentBufElm);
+					va.get()[selectedVirtualArray].copyToBuffer(selectedElement, currentRange, mem.buf+currentBufElm);
 				}
 				else
 				{
@@ -375,7 +405,7 @@ public:
 
 		// execute function
 		// -index offset matches origins of buffer and virtual array such that buf[i] = va[i] for all elements
-		f(arr.get()-index);
+		f(mem.buf-index);
 
 		// get data to gpu
 		if(write)
@@ -398,7 +428,7 @@ public:
 				if(currentRange>0)
 				{
 					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
-					va.get()[selectedVirtualArray].copyFromBuffer(selectedElement, currentRange, arr.get()+currentBufElm);
+					va.get()[selectedVirtualArray].copyFromBuffer(selectedElement, currentRange, mem.buf+currentBufElm);
 				}
 				else
 				{
@@ -413,7 +443,7 @@ public:
 		// unlock pinning
 		if(pinBuffer)
 		{
-			munlock(arr.get(),range);
+			munlock(mem.buf,range);
 		}
 	}
 
