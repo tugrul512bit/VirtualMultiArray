@@ -43,6 +43,7 @@ public:
 
 	// this is for internal logic only that just serves memory handle for opencl operations
 	cl_mem getMem(){ return *mem; }
+	cl_mem * getMemPtr(){ return mem.get(); }
 
 private:
 	// these should be enough for keeping track of data in multi-threaded usage without causing any double-free errors

@@ -16,6 +16,7 @@
 #include"ClContext.h"
 #include"ClCommandQueue.h"
 #include"ClArray.h"
+#include"ClCompute.h"
 #include"Page.h"
 #include"CL/cl.h"
 
@@ -25,7 +26,7 @@ class VirtualArray
 {
 public:
 	// don't use this
-	VirtualArray():sz(0),szp(0),nump(0){}
+	VirtualArray():sz(0),szp(0),nump(0),compute(nullptr){}
 
 	// for generating a physical-card based virtual array
 	// takes a single virtual graphics card, size(in number of objects), page size(in number of objects), active pages (number of pages in interleaved order for caching)
@@ -34,6 +35,7 @@ public:
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
+		compute = nullptr;
 		dv = std::make_shared<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= std::make_shared<ClContext>(*dv,0);
@@ -55,24 +57,17 @@ public:
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
-
+		compute = nullptr;
 		dv = std::make_shared<ClDevice>();
-
 		*dv=device.generate()[0];
-
 		ctx= context.generate();
-
 		q= std::make_shared<ClCommandQueue>(*ctx,*dv);
-
 		gpu= std::make_shared<ClArray<T>>(sz,*ctx);
-
 		cpu= std::shared_ptr<Page<T>>(new Page<T>[nump],[](Page<T> * ptr){delete [] ptr;});
-
 		for(int i=0;i<nump;i++)
 		{
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
-
 	}
 
 	// array access for reading an element at an index
@@ -400,6 +395,110 @@ public:
 
 	}
 
+	// a sub-operation of VirtualMultiArray::find() to do fully gpu-accelerated element search
+	void flushPage(size_t pageIdx)
+	{
+		auto & sel = cpu.get()[pageIdx];
+		if(sel.isEdited())
+		{
+			cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel.ptr(),0,nullptr,nullptr);
+			if(CL_SUCCESS != err)
+			{
+				std::cout<<"error: (edited)write buffer (copyToBuffer): "<<std::endl;
+			}
+			clFinish(q->getQueue());
+		}
+		sel.reset();
+	}
+
+	// opencl compute test
+	template<typename S>
+	size_t find(int memberOffset, S memberValue, const int vaId)
+	{
+		// kernel parameter data
+		int objSizeTmp = sizeof(T);
+		int ofs = memberOffset;
+		S val = memberValue;
+		int memberSizeTmp = sizeof(S);
+		std::vector<int> found(2,0);
+
+		// lazy init opencl compute resources
+		if(compute==nullptr)
+		{
+			compute = std::make_shared<ClCompute>(*ctx,*dv,std::string(R"(
+                     #define __N__ )")+std::to_string(sz)+std::string(R"(
+	                 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+
+	                 __kernel void )")+std::string(R"(find)")+std::to_string(vaId)+ std::string(R"(
+	                 (                   __global unsigned char * memberVal,
+	                                     __global int * memberOfs, 
+	                                     volatile __global int * findList, 
+	                                     __global int * objSize, 
+	                                     __global int * memberSize,
+	                                     __global unsigned char * arr)
+					{                                                                      
+					   size_t id=get_global_id(0);
+                       if(id>=__N__) return;
+	                   size_t oSize = *objSize;
+	                   size_t mSize = *memberSize;
+	                   size_t oSizeI0= oSize*id + *memberOfs;
+	                   size_t oSizeI1= oSizeI0 + mSize;                   
+	                   int valCtr = 0;
+	                   int cmpCtr = 0;
+	                   for(size_t i=oSizeI0; i<oSizeI1; i++)
+	                   {
+	                       cmpCtr+=(arr[i] == memberVal[valCtr]);                       
+	                       valCtr++;
+	                   }                                     
+					   if(cmpCtr == mSize)
+					   {
+	                        
+							int adr = atomic_add(&findList[0],1);                       
+	                        if(adr==0)
+							   findList[adr+1]=id;
+	                        mem_fence(CLK_GLOBAL_MEM_FENCE);
+					   }             
+					}                                                                      )"),std::string("find")+std::to_string(vaId));
+
+			compute->addParameter(*ctx,"member value",sizeof(S),0);
+			compute->addParameter(*ctx,"member offset",64,1);
+			compute->addParameter(*ctx,"found index list",2*sizeof(int),2);
+			compute->addParameter(*ctx,"object size",64,3);
+			compute->addParameter(*ctx,"member size",64,4);
+			compute->addParameter(*ctx,"data buffer",64,5,gpu->getMemPtr());
+			compute->setKernelArgs();
+
+
+		}
+
+
+		compute->setArgValueAsync("member offset",*q,ofs);
+		compute->setArgValueAsync("member value",*q,val);
+		compute->setArgValueAsync("found index list",*q,*found.data());
+		compute->setArgValueAsync("object size",*q,objSizeTmp);
+		compute->setArgValueAsync("member size",*q,memberSizeTmp);
+
+		compute->runAsync(*q,sz+256-(sz%256),256);
+
+		compute->getArgValueAsync("found index list",*q,*found.data());
+
+		compute->sync(*q);
+
+
+		if(found[0]>0)
+		{
+			return found[1];
+		}
+		else
+		{
+			return -1;
+		}
+	}
+
+	int getNumP()
+	{
+		return nump;
+	}
 
 	// this class only meant to be inside VirtualMultiArray and only constructed once so, only needs to be moved only once
     VirtualArray& operator=(VirtualArray&&) = default;
@@ -408,13 +507,32 @@ public:
 
 	~VirtualArray(){}
 private:
+
+	// gpu buffer size
 	size_t sz;
+
+	// page size
 	int szp;
+
+	// number of active pages
 	int nump;
+
+	// opencl device
 	std::shared_ptr<ClDevice> dv;
+
+	// opencl context
 	std::shared_ptr<ClContext> ctx;
+
+	// opencl queue
 	std::shared_ptr<ClCommandQueue> q;
+
+	// kernel parameters
+	std::shared_ptr<ClCompute> compute;
+
+	// opencl buffer in graphics card
 	std::shared_ptr<ClArray<T>> gpu;
+
+	// opencl-pinned buffer in RAM
 	std::shared_ptr<Page<T>> cpu;
 };
 

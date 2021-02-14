@@ -19,6 +19,8 @@
 // this is for mappedReadWriteAccess --> for linux
 #include<sys/mman.h>
 
+#include<thread>
+
 #include"ClDevice.h"
 #include"VirtualArray.h"
 
@@ -445,6 +447,63 @@ public:
 		{
 			munlock(mem.buf,range);
 		}
+	}
+
+	// using gpu compute power, finds an element with given member value, returns its index
+	// obj: object instance
+	// member: member of object to be used for searching value
+	template<typename S>
+	size_t find(T & obj, S & member)
+	{
+		//throw std::invalid_argument("Error: find method not implemented.");
+		size_t adrObj = (size_t) &obj;
+		size_t adrMem = (size_t) &member;
+		size_t offset = adrMem - adrObj; // how many bytes the member is found after
+		size_t result = -1;
+
+		// 1) flush all active pages, expect user not to touch any element during search
+		// 2) run search on all gpus on all of their data
+		// 3) return index
+
+		std::vector<std::thread> parallel;
+
+
+		std::mutex mGlobal;
+		for(int i=0;i<numDevice;i++)
+		{
+			parallel.push_back(std::thread([&,i]()
+			{
+				std::unique_lock<std::mutex> lock(pageLock.get()[i]);
+				size_t nump = va.get()[i].getNumP();
+				for(size_t pg = 0;pg<nump;pg++)
+				{
+					va.get()[i].flushPage(pg);
+				}
+
+				size_t resultI = va.get()[i].find(offset,member,i);
+				if(resultI!=-1)
+				{
+					size_t gpuPage = (resultI/pageSize);
+					size_t realPage = (gpuPage * numDevice) + i;
+					size_t realIndex = (realPage * pageSize) + (resultI%pageSize);
+
+
+					{
+						std::unique_lock<std::mutex> lock(mGlobal);
+						result=  realIndex;
+					}
+				}
+			}));
+		}
+
+		for(int i=0;i<numDevice;i++)
+		{
+			if(parallel[i].joinable())
+			{
+				parallel[i].join();
+			}
+		}
+		return result;
 	}
 
 	class SetterGetter
