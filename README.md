@@ -45,6 +45,7 @@ Particle p = particleArray[5];
 std::cout<<p.getId()<<std::endl
 
 // returns indices of particles with id member value = p.id
+// gpu-accelerated, does not use RAM bandwidth for searching
 vector<size_t> indexArray = particleArray.find(p,p.id);
 
 ```
