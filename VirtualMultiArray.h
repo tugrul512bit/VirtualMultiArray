@@ -453,14 +453,15 @@ public:
 	// using gpu compute power, finds an element with given member value, returns its index
 	// obj: object instance
 	// member: member of object to be used for searching value
+	// indexListMaxSize: maximum number of indices found
 	template<typename S>
-	size_t find(T & obj, S & member)
+	std::vector<size_t> find(T & obj, S & member, const int indexListMaxSize=1)
 	{
 		//throw std::invalid_argument("Error: find method not implemented.");
 		size_t adrObj = (size_t) &obj;
 		size_t adrMem = (size_t) &member;
 		size_t offset = adrMem - adrObj; // how many bytes the member is found after
-		size_t result = -1;
+		std::vector<size_t> results;
 
 		// 1) flush all active pages, expect user not to touch any element during search
 		// 2) run search on all gpus on all of their data
@@ -481,17 +482,22 @@ public:
 					va.get()[i].flushPage(pg);
 				}
 
-				size_t resultI = va.get()[i].find(offset,member,i);
-				if(resultI!=-1)
-				{
-					size_t gpuPage = (resultI/pageSize);
-					size_t realPage = (gpuPage * numDevice) + i;
-					size_t realIndex = (realPage * pageSize) + (resultI%pageSize);
+				std::vector<size_t> resultI = va.get()[i].find(offset,member,i,indexListMaxSize);
 
+				{
+					const int szResultI = resultI.size();
+					for(size_t k = 0; k<szResultI; k++)
+					{
+
+						size_t gpuPage = (resultI[k]/pageSize);
+						size_t realPage = (gpuPage * numDevice) + i;
+						size_t realIndex = (realPage * pageSize) + (resultI[k]%pageSize);
+						resultI[k]=realIndex;
+					}
 
 					{
 						std::unique_lock<std::mutex> lock(mGlobal);
-						result=  realIndex;
+						std::move(resultI.begin(),resultI.end(),std::back_inserter(results));
 					}
 				}
 			}));
@@ -504,7 +510,7 @@ public:
 				parallel[i].join();
 			}
 		}
-		return result;
+		return results;
 	}
 
 	class SetterGetter

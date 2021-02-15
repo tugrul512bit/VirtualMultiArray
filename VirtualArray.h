@@ -413,36 +413,39 @@ public:
 
 	// opencl compute test
 	template<typename S>
-	size_t find(int memberOffset, S memberValue, const int vaId)
+	std::vector<size_t> find(int memberOffset, S memberValue, const int vaId, const int foundIdMaxListSize = 1)
 	{
+		int foundIdListSize = foundIdMaxListSize;
 		// kernel parameter data
 		int objSizeTmp = sizeof(T);
 		int ofs = memberOffset;
 		S val = memberValue;
 		int memberSizeTmp = sizeof(S);
-		std::vector<int> found(2,0);
+		std::vector<size_t> found(foundIdListSize+1 /* first element is atomic counter in gpu */ ,0);
 
 		// lazy init opencl compute resources
 		if(computeFind==nullptr)
 		{
 			computeFind = std::make_unique<ClCompute>(*ctx,*dv,std::string(R"(
                      #define __N__ )")+std::to_string(sz)+std::string(R"(
-	                 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+                     #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
 	                 __kernel void )")+std::string(R"(find)")+std::to_string(vaId)+ std::string(R"(
 	                 (                   __global unsigned char * memberVal,
 	                                     __global int * memberOfs, 
-	                                     volatile __global int * findList, 
+	                                     volatile __global size_t * findList, 
 	                                     __global int * objSize, 
 	                                     __global int * memberSize,
-	                                     __global unsigned char * arr)
+	                                     __global unsigned char * arr,
+                                         __global int * findListSize)
 					{                                                                      
 					   size_t id=get_global_id(0);
                        if(id>=__N__) return;
 	                   size_t oSize = *objSize;
 	                   size_t mSize = *memberSize;
 	                   size_t oSizeI0= oSize*id + *memberOfs;
-	                   size_t oSizeI1= oSizeI0 + mSize;                   
+	                   size_t oSizeI1= oSizeI0 + mSize; 
+                       int sz = *findListSize;                  
 	                   int valCtr = 0;
 	                   int cmpCtr = 0;
 	                   for(size_t i=oSizeI0; i<oSizeI1; i++)
@@ -453,19 +456,22 @@ public:
 					   if(cmpCtr == mSize)
 					   {
 	                        
-							int adr = atomic_add(&findList[0],1);                       
-	                        if(adr==0)
+							size_t adr = atom_add(&findList[0],(size_t)1);
+                            if((id==60000) && ((adr+1)<=sz)) printf(" { %d %d %d %d } ",arr[oSizeI0],arr[oSizeI0+1],arr[oSizeI0+2],arr[oSizeI0+3]);   
+                            if((id==30000) && ((adr+1)<=sz)) printf(" { %d %d %d %d } ",arr[oSizeI0],arr[oSizeI0+1],arr[oSizeI0+2],arr[oSizeI0+3]);                      
+	                        if((adr+1)<=sz)
 							   findList[adr+1]=id;
-	                        mem_fence(CLK_GLOBAL_MEM_FENCE);
+	                        //mem_fence(CLK_GLOBAL_MEM_FENCE);
 					   }             
 					}                                                                      )"),std::string("find")+std::to_string(vaId));
 
 			computeFind->addParameter(*ctx,"member value",sizeof(S),0);
 			computeFind->addParameter(*ctx,"member offset",64,1);
-			computeFind->addParameter(*ctx,"found index list",2*sizeof(int),2);
+			computeFind->addParameter(*ctx,"found index list",(foundIdListSize + 1)*sizeof(size_t),2);
 			computeFind->addParameter(*ctx,"object size",64,3);
 			computeFind->addParameter(*ctx,"member size",64,4);
 			computeFind->addParameter(*ctx,"data buffer",64,5,gpu->getMemPtr());
+			computeFind->addParameter(*ctx,"found index list size",64,6);
 			computeFind->setKernelArgs();
 		}
 
@@ -477,27 +483,60 @@ public:
 			computeFind->setKernelArgs(0);
 		}
 
+		// if search result list length is not same as the last one
+		if(foundIdListSize+1*sizeof(size_t)!=computeFind->getArgSizeBytes("found index list"))
+		{
+			// allocate new resources
+			computeFind->addParameter(*ctx,"found index list",(foundIdListSize + 1)*sizeof(size_t),2);
+			computeFind->setKernelArgs(2);
+		}
+
+		// set argument values of kernel
 		computeFind->setArgValueAsync("member offset",*q,ofs);
 		computeFind->setArgValueAsync("member value",*q,val);
 		computeFind->setArgValueAsync("found index list",*q,*found.data());
 		computeFind->setArgValueAsync("object size",*q,objSizeTmp);
 		computeFind->setArgValueAsync("member size",*q,memberSizeTmp);
+		computeFind->setArgValueAsync("found index list size",*q,foundIdListSize);
 
+		// run kernel
 		computeFind->runAsync(*q,sz+256-(sz%256),256);
 
+		// read find list
 		computeFind->getArgValueAsync("found index list",*q,*found.data());
 
 		computeFind->sync(*q);
 
-
-		if(found[0]>0)
+		size_t numFound = found[0];
+		if(numFound>foundIdListSize)
+			numFound=foundIdListSize;
+		std::cout<<"numfound="<<numFound<<std::endl;
+		// empty cells deleted
+		if(numFound>0)
 		{
-			return found[1];
+			size_t szF = found.size();
+			if(szF>2)
+			{
+				size_t len = szF - 1;
+				if(len>numFound)
+				{
+					size_t numNotFound = len - numFound;
+					for(size_t del = 0;del<numNotFound;del++)
+					{
+						found.erase(found.end()-1);
+					}
+				}
+			}
 		}
 		else
 		{
-			return -1;
+			return std::vector<size_t>();
 		}
+
+		// atomic counter deleted
+		found.erase(found.begin());
+
+		return found;
 	}
 
 	int getNumP()
