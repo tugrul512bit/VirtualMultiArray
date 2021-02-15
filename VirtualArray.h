@@ -26,7 +26,7 @@ class VirtualArray
 {
 public:
 	// don't use this
-	VirtualArray():sz(0),szp(0),nump(0),compute(nullptr){}
+	VirtualArray():sz(0),szp(0),nump(0),computeFind(nullptr){}
 
 	// for generating a physical-card based virtual array
 	// takes a single virtual graphics card, size(in number of objects), page size(in number of objects), active pages (number of pages in interleaved order for caching)
@@ -35,7 +35,7 @@ public:
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
-		compute = nullptr;
+		computeFind = nullptr;
 		dv = std::make_shared<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= std::make_shared<ClContext>(*dv,0);
@@ -57,7 +57,7 @@ public:
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
-		compute = nullptr;
+		computeFind = nullptr;
 		dv = std::make_shared<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= context.generate();
@@ -423,9 +423,9 @@ public:
 		std::vector<int> found(2,0);
 
 		// lazy init opencl compute resources
-		if(compute==nullptr)
+		if(computeFind==nullptr)
 		{
-			compute = std::make_shared<ClCompute>(*ctx,*dv,std::string(R"(
+			computeFind = std::make_unique<ClCompute>(*ctx,*dv,std::string(R"(
                      #define __N__ )")+std::to_string(sz)+std::string(R"(
 	                 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 
@@ -460,29 +460,34 @@ public:
 					   }             
 					}                                                                      )"),std::string("find")+std::to_string(vaId));
 
-			compute->addParameter(*ctx,"member value",sizeof(S),0);
-			compute->addParameter(*ctx,"member offset",64,1);
-			compute->addParameter(*ctx,"found index list",2*sizeof(int),2);
-			compute->addParameter(*ctx,"object size",64,3);
-			compute->addParameter(*ctx,"member size",64,4);
-			compute->addParameter(*ctx,"data buffer",64,5,gpu->getMemPtr());
-			compute->setKernelArgs();
-
-
+			computeFind->addParameter(*ctx,"member value",sizeof(S),0);
+			computeFind->addParameter(*ctx,"member offset",64,1);
+			computeFind->addParameter(*ctx,"found index list",2*sizeof(int),2);
+			computeFind->addParameter(*ctx,"object size",64,3);
+			computeFind->addParameter(*ctx,"member size",64,4);
+			computeFind->addParameter(*ctx,"data buffer",64,5,gpu->getMemPtr());
+			computeFind->setKernelArgs();
 		}
 
+		// if search member is different sized than the last one
+		if(memberSizeTmp!=computeFind->getArgSizeBytes("member value"))
+		{
+			// allocate new resources
+			computeFind->addParameter(*ctx,"member value",sizeof(S),0);
+			computeFind->setKernelArgs(0);
+		}
 
-		compute->setArgValueAsync("member offset",*q,ofs);
-		compute->setArgValueAsync("member value",*q,val);
-		compute->setArgValueAsync("found index list",*q,*found.data());
-		compute->setArgValueAsync("object size",*q,objSizeTmp);
-		compute->setArgValueAsync("member size",*q,memberSizeTmp);
+		computeFind->setArgValueAsync("member offset",*q,ofs);
+		computeFind->setArgValueAsync("member value",*q,val);
+		computeFind->setArgValueAsync("found index list",*q,*found.data());
+		computeFind->setArgValueAsync("object size",*q,objSizeTmp);
+		computeFind->setArgValueAsync("member size",*q,memberSizeTmp);
 
-		compute->runAsync(*q,sz+256-(sz%256),256);
+		computeFind->runAsync(*q,sz+256-(sz%256),256);
 
-		compute->getArgValueAsync("found index list",*q,*found.data());
+		computeFind->getArgValueAsync("found index list",*q,*found.data());
 
-		compute->sync(*q);
+		computeFind->sync(*q);
 
 
 		if(found[0]>0)
@@ -526,8 +531,8 @@ private:
 	// opencl queue
 	std::shared_ptr<ClCommandQueue> q;
 
-	// kernel parameters
-	std::shared_ptr<ClCompute> compute;
+	// kernel + parameters for "find"
+	std::unique_ptr<ClCompute> computeFind;
 
 	// opencl buffer in graphics card
 	std::shared_ptr<ClArray<T>> gpu;

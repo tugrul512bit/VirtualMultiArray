@@ -26,7 +26,7 @@ public:
 		sizeBytes=sizeBytesP;
 		argIndex=argIndexP;
 		cl_int err;
-		mem = std::make_shared<cl_mem>();
+		mem = std::make_unique<cl_mem>();
 		if(outerGpuBuf==nullptr)
 		{
 			*mem = clCreateBuffer( *ctx.ctxPtr(), CL_MEM_READ_WRITE,sizeBytes,nullptr,&err);
@@ -58,7 +58,7 @@ public:
 
 	~ClComputeParameter(){ if(built) clReleaseMemObject(*mem);}
 private:
-	std::shared_ptr<cl_mem> mem;
+	std::unique_ptr<cl_mem> mem;
 	int argIndex;
 	int sizeBytes;
 	std::string name;
@@ -117,24 +117,26 @@ public:
 
 	void addParameter(ClContext ctx, std::string name, int lengthByte, int parameterIndex, cl_mem * outerGpuBuf=nullptr)
 	{
-		parameters[name]=std::make_shared<ClComputeParameter>(ctx, name,lengthByte,parameterIndex,outerGpuBuf);
+		parameters[name]=std::make_unique<ClComputeParameter>(ctx, name,lengthByte,parameterIndex,outerGpuBuf);
 	}
 
-	void setKernelArgs()
+	void setKernelArgs(int arg = -1)
 	{
 		cl_int err;
 		for(auto const & e:parameters)
 		{
-			err=clSetKernelArg(	kernel, e.second->getIdx(),
-								sizeof(e.second->getMem()),
-								(void*)(e.second->getMemPtr() )
-			);
-
-			if(CL_SUCCESS != err)
+			if((arg == -1) || (arg == e.second->getIdx()))
 			{
-				std::cout<<"Error: kernel arg set: "<<((ClComputeParameter *)(e.second.get()))->getName()<<std::endl;
-			}
+				err=clSetKernelArg(	kernel, e.second->getIdx(),
+									sizeof(e.second->getMem()),
+									(void*)(e.second->getMemPtr() )
+				);
 
+				if(CL_SUCCESS != err)
+				{
+					std::cout<<"Error: kernel arg set: "<<((ClComputeParameter *)(e.second.get()))->getName()<<std::endl;
+				}
+			}
 		}
 	}
 
@@ -202,6 +204,19 @@ public:
 
 	void sync(ClCommandQueue q){clFinish(q.getQueue());}
 
+	size_t getArgSizeBytes(std::string name)
+	{
+		auto it = parameters.find(name);
+		if(it!=parameters.end())
+		{
+			return parameters[name]->getSize();
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
 	~ClCompute(){
 		if(kernelBuilt)
 			clReleaseKernel(kernel);
@@ -213,7 +228,7 @@ private:
 	bool kernelBuilt;
 	cl_program program;
 	cl_kernel kernel;
-	std::map<std::string,std::shared_ptr<ClComputeParameter>> parameters;
+	std::map<std::string,std::unique_ptr<ClComputeParameter>> parameters;
 };
 
 

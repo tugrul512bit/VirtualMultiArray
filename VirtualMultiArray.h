@@ -19,6 +19,7 @@
 // this is for mappedReadWriteAccess --> for linux
 #include<sys/mman.h>
 
+
 #include<thread>
 
 #include"ClDevice.h"
