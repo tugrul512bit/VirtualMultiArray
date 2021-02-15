@@ -443,16 +443,36 @@ public:
                        if(id>=__N__) return;
 	                   size_t oSize = *objSize;
 	                   size_t mSize = *memberSize;
-	                   size_t oSizeI0= oSize*id + *memberOfs;
-	                   size_t oSizeI1= oSizeI0 + mSize; 
+ 
                        int sz = *findListSize;                  
 	                   int valCtr = 0;
 	                   int cmpCtr = 0;
-	                   for(size_t i=oSizeI0; i<oSizeI1; i++)
-	                   {
-	                       cmpCtr+=(arr[i] == memberVal[valCtr]);                       
-	                       valCtr++;
-	                   }                                     
+
+                       /* optimized data load for bigger member sizes */
+                       size_t remaining = mSize % 4; // loading by 4-byte unsigned integers
+
+	                   size_t oSizeI0= oSize*id + *memberOfs;
+	                   size_t oSizeI1= oSizeI0 + mSize; 
+ 
+                       // if multiple of int size and aligned to 32bit                      
+                       if((remaining == 0) && ((((size_t)arr)%4) == 0) && ((((size_t)(memberVal)  )%4)==0))
+                       {
+						   for(size_t i=oSizeI0; i<oSizeI1; i+=4)
+						   {
+							   cmpCtr+=4*(*((__global int*)(arr+i)) == *((__global int*)(memberVal+valCtr)));                       
+							   valCtr+=4;
+						   }
+                       }
+                       else
+                       {
+
+						   for(size_t i=oSizeI0; i<oSizeI1; i++)
+						   {
+							   cmpCtr+=(arr[i] == memberVal[valCtr]);                       
+							   valCtr++;
+						   }
+                       }     
+                                
 					   if(cmpCtr == mSize)
 					   {
 	                        
