@@ -40,6 +40,11 @@ VirtualMultiArray<Particle> particleArray(n,depot.requestGpus(),pageSize,maxActi
 particleArray.set(5,Particle(31415));
 
 std::cout<<particleArray.get(5).getId()<<std::endl;
+
 Particle p = particleArray[5];
 std::cout<<p.getId()<<std::endl
+
+// returns indices of particles with id member value = p.id
+vector<size_t> indexArray = particleArray.find(p,p.id);
+
 ```
