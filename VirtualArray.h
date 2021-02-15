@@ -510,7 +510,7 @@ public:
 		size_t numFound = found[0];
 		if(numFound>foundIdListSize)
 			numFound=foundIdListSize;
-		std::cout<<"numfound="<<numFound<<std::endl;
+
 		// empty cells deleted
 		if(numFound>0)
 		{
