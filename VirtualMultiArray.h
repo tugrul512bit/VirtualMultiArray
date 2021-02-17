@@ -20,18 +20,11 @@
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
 // windows
 #include<memoryapi.h>
-
+#define __restrict__ __restrict
 #else
 // linux
 #include<sys/mman.h>
 
-#endif
-
-#if defined(__restrict)
-// ok for g++7..10
-#else
-// msvc++ needs this
-#define __restrict__ __restrict
 #endif
 
 
