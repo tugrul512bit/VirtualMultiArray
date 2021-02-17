@@ -12,16 +12,17 @@
 #include "GraphicsCardSupplyDepot.h"
 #include "VirtualMultiArray.h"
 
-
+#include<vector>
 #include<thread>
 #include<cmath>
 template <class F>
-void parallelFor(const int N, const F & f) {
+void parallelFor(const int N, const F  f) {
 
-	std::thread thr[N];
+
+	std::vector<std::thread> thr;
 
 	for(int i=0; i<N; i++) {
-		thr[i]=std::thread(f,i);
+		thr.push_back(std::thread(f,i));
 	}
 	for(int i=0; i<N; i++) {
 		thr[i].join();
