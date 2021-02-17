@@ -18,7 +18,7 @@
 #include"ClArray.h"
 #include"ClCompute.h"
 #include"Page.h"
-#include"CL/cl.h"
+#include<CL/cl.h>
 
 // this is a non-threadsafe single-graphics-card using virtual array
 template<typename T>
@@ -426,7 +426,7 @@ public:
 		// lazy init opencl compute resources
 		if(computeFind==nullptr)
 		{
-			computeFind = std::make_unique<ClCompute>(*ctx,*dv,std::string(R"(
+			computeFind = std::unique_ptr<ClCompute>(new ClCompute(*ctx,*dv,std::string(R"(
                      #define __N__ )")+std::to_string(sz)+std::string(R"(
                      #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
@@ -483,7 +483,7 @@ public:
 							   findList[adr+1]=id;
 	                        //mem_fence(CLK_GLOBAL_MEM_FENCE);
 					   }             
-					}                                                                      )"),std::string("find")+std::to_string(vaId));
+					}                                                                      )"),std::string("find")+std::to_string(vaId)));
 
 			computeFind->addParameter(*ctx,"member value",sizeof(S),0);
 			computeFind->addParameter(*ctx,"member offset",64,1);

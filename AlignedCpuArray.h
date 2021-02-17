@@ -13,7 +13,7 @@
 // just in case opencl-way of pinning fails
 //#include<sys/mman.h>
 
-#include"CL/cl.h"
+#include<CL/cl.h>
 
 // storage of an active page
 // pinned array is faster in data copying (Page class uses this for all active pages for performance)
@@ -50,7 +50,15 @@ public:
 		}
 		else
 		{
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+			arr = (T *)_aligned_malloc(sizeof(T)*size,alignment);
+
+#else
+// linux
 			arr = (T *)aligned_alloc(alignment,sizeof(T)*size);
+#endif
+
 
 			// OS pin-array
 			//if(ENOMEM==mlock(arr,size)){std::cout<<"error: mlock"<<std::endl; pinned=false; };
@@ -81,8 +89,17 @@ public:
 		{
 			//munlock(arr,size); // OS unpin
 
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+			if(arr!=nullptr)
+				_aligned_free(arr);
+
+#else
+// linux
 			if(arr!=nullptr)
 				free(arr);
+#endif
+
 		}
 	}
 private:

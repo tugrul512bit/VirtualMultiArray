@@ -10,7 +10,7 @@
 
 #include<iostream>
 #include<memory>
-#include"CL/cl.h"
+#include<CL/cl.h>
 
 // wrapper for graphics card data storage
 // each instance stores all data of a virtual card. Using more virtual cards (which are generated from a common physical card) make this smaller sized.

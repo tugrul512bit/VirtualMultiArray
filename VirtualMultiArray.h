@@ -17,7 +17,22 @@
 #include <functional>
 
 // this is for mappedReadWriteAccess --> for linux
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+#include<memoryapi.h>
+
+#else
+// linux
 #include<sys/mman.h>
+
+#endif
+
+#if defined(__restrict)
+// ok for g++7..10
+#else
+// msvc++ needs this
+#define __restrict__ __restrict
+#endif
 
 
 #include<thread>
@@ -250,7 +265,7 @@ public:
 		{
 			size_t nToRead = n;
 			size_t maxThisPage = pageSize - modIdx;
-			size_t toBeCopied = std::min(nToRead,maxThisPage);
+			size_t toBeCopied = ((nToRead<maxThisPage)? nToRead: maxThisPage);
 
 			// read this page
 			{
@@ -299,7 +314,7 @@ public:
 		{
 			size_t nToWrite = n;
 			size_t maxThisPage = pageSize - modIdx;
-			size_t toBeCopied = std::min(nToWrite,maxThisPage);
+			size_t toBeCopied = ((nToWrite<maxThisPage)? nToWrite: maxThisPage);
 
 			// write this page
 			{
@@ -347,13 +362,21 @@ public:
 			T * __restrict__ const buf;
 		};
 
-
+		
 
 
 		std::unique_ptr<T,void(*)(void *)> arr(nullptr,free);
 		if(nullptr == userPtr)
 		{
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+			arr = std::unique_ptr<T,void(*)(void *)>((T *)_aligned_malloc(/* (index*sizeof(T))%4096*/ sizeof(T)*range,4096),_aligned_free);
+
+#else
+// linux
 			arr = std::unique_ptr<T,void(*)(void *)>((T *)aligned_alloc(/* (index*sizeof(T))%4096*/ 4096,sizeof(T)*range),free);
+#endif
+
 
 		}
 
@@ -366,10 +389,21 @@ public:
 		// lock the buffer so that it will not be paged out by OS during function
 		if(pinBuffer)
 		{
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+			if(0==VirtualLock(mem.buf,range))
+			{
+				throw std::invalid_argument("Error: memory pinning failed.");
+			}
+
+#else
+// linux
 			if(ENOMEM==mlock(mem.buf,range))
 			{
 				throw std::invalid_argument("Error: memory pinning failed.");
 			}
+#endif
+
 		}
 
 
@@ -386,7 +420,8 @@ public:
 			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
 			{
 				remainingPageElm = pageSize - (currentIndex % pageSize);
-				currentRange = std::min(remainingRange,remainingPageElm);
+ 
+				currentRange = ((remainingRange<remainingPageElm)? remainingRange: remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
 				const size_t numInterleave = selectedPage/numDevice;
@@ -423,7 +458,7 @@ public:
 			for(size_t selectedPage = indexStartPage; selectedPage<=indexEndPage; selectedPage++)
 			{
 				remainingPageElm = pageSize - (currentIndex % pageSize);
-				currentRange = std::min(remainingRange,remainingPageElm);
+				currentRange = ((remainingRange<remainingPageElm)? remainingRange: remainingPageElm);
 
 				const size_t selectedVirtualArray = selectedPage%numDevice;
 				const size_t numInterleave = selectedPage/numDevice;
@@ -446,7 +481,15 @@ public:
 		// unlock pinning
 		if(pinBuffer)
 		{
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+			VirtualUnlock(mem.buf,range);
+
+#else
+// linux
 			munlock(mem.buf,range);
+#endif
+
 		}
 	}
 

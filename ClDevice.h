@@ -13,7 +13,7 @@
 #include<vector>
 #include<memory>
 #include"ClPlatform.h"
-#include"CL/cl.h"
+#include<CL/cl.h>
 
 // graphics card
 //
@@ -62,35 +62,6 @@ public:
 							{
 								std::string str = name;
 								std::cout<<name<<" VRAM: "<<memSize<<" bytes"<<std::endl;
-								cl_device_svm_capabilities svm;
-								if(CL_SUCCESS!=clGetDeviceInfo(device.get()[i], CL_DEVICE_SVM_CAPABILITIES,  sizeof(svm), &svm, nullptr))
-								{
-									std::cout<<"    info: svm not found"<<std::endl;
-								}
-								else
-								{
-									std::cout<<"    info:"<<std::endl;
-									if((svm&CL_DEVICE_SVM_COARSE_GRAIN_BUFFER)!=0)
-									{
-										std::cout<<"      supports: CL_DEVICE_SVM_COARSE_GRAIN_BUFFER"<<std::endl;
-									}
-
-									if((svm&CL_DEVICE_SVM_FINE_GRAIN_BUFFER)!=0)
-									{
-										std::cout<<"      supports: CL_DEVICE_SVM_FINE_GRAIN_BUFFER"<<std::endl;
-									}
-
-									if((svm&CL_DEVICE_SVM_FINE_GRAIN_SYSTEM)!=0)
-									{
-										std::cout<<"      supports: CL_DEVICE_SVM_FINE_GRAIN_SYSTEM"<<std::endl;
-									}
-
-									if((svm&CL_DEVICE_SVM_ATOMICS)!=0)
-									{
-										std::cout<<"      supports: CL_DEVICE_SVM_ATOMICS"<<std::endl;
-									}
-									std::cout<<"    -----"<<std::endl;
-								}
 
 							}
 							vram.get()[i]=memSize/1000000000;

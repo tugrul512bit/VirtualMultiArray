@@ -10,7 +10,7 @@
 
 #include<memory>
 #include<map>
-#include "CL/cl.h"
+#include <CL/cl.h>
 #include "ClDevice.h"
 #include "ClContext.h"
 #include "ClCommandQueue.h"
@@ -26,7 +26,7 @@ public:
 		sizeBytes=sizeBytesP;
 		argIndex=argIndexP;
 		cl_int err;
-		mem = std::make_unique<cl_mem>();
+		mem = std::unique_ptr<cl_mem>(new cl_mem());
 		if(outerGpuBuf==nullptr)
 		{
 			*mem = clCreateBuffer( *ctx.ctxPtr(), CL_MEM_READ_WRITE,sizeBytes,nullptr,&err);
@@ -117,7 +117,7 @@ public:
 
 	void addParameter(ClContext ctx, std::string name, int lengthByte, int parameterIndex, cl_mem * outerGpuBuf=nullptr)
 	{
-		parameters[name]=std::make_unique<ClComputeParameter>(ctx, name,lengthByte,parameterIndex,outerGpuBuf);
+		parameters[name]=std::unique_ptr<ClComputeParameter>(new ClComputeParameter(ctx, name,lengthByte,parameterIndex,outerGpuBuf));
 	}
 
 	void setKernelArgs(int arg = -1)

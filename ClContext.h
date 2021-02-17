@@ -11,7 +11,7 @@
 #include<iostream>
 #include<memory>
 #include"ClDevice.h"
-#include"CL/cl.h"
+#include<CL/cl.h>
 
 // wrapper for opencl context that is used to hold multiple command queues per graphics card to overlap data copies
 // smart pointer takes care of releasing its resources so that multiple instances can exist without breaking raii

@@ -12,7 +12,8 @@
 #include<memory>
 #include"ClContext.h"
 #include"ClDevice.h"
-#include"CL/cl.h"
+#include<CL/cl.h>
+
 
 // wrapper for opencl command queue for simple usage in opencl operations
 // default property is chosen when property parameter is null and this means in-order execution of opencl commands on same command queue
@@ -25,10 +26,10 @@ public:
 	{
 		q=std::shared_ptr<cl_command_queue>(new cl_command_queue(),[](cl_command_queue * ptr){ if(CL_SUCCESS!=clReleaseCommandQueue(*ptr)){std::cout<<"error: release queue"<<std::endl;} delete ptr;});
 		cl_int err;
-		*q=clCreateCommandQueueWithProperties(
+		*q=clCreateCommandQueue(
 						*ctx.ctxPtr(),
 						*dev.devPtr(),
-						nullptr,
+						0,
 						&err
 		);
 
