@@ -13,7 +13,7 @@
 #include"ClContext.h"
 #include"ClDevice.h"
 #include<CL/cl.h>
-
+#include<stdexcept>
 
 // wrapper for opencl command queue for simple usage in opencl operations
 // default property is chosen when property parameter is null and this means in-order execution of opencl commands on same command queue
@@ -37,7 +37,7 @@ public:
 
 		if(CL_SUCCESS!=err)
 		{
-			std::cout<<"error: command queue"<<std::endl;
+			throw std::invalid_argument("error: command queue");
 		}
 	}
 

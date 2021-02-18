@@ -12,6 +12,7 @@
 #include<memory>
 #include"ClDevice.h"
 #include<CL/cl.h>
+#include<stdexcept>
 
 // wrapper for opencl context that is used to hold multiple command queues per graphics card to overlap data copies
 // smart pointer takes care of releasing its resources so that multiple instances can exist without breaking raii
@@ -34,7 +35,7 @@ public:
 
 		if(CL_SUCCESS!=err)
 		{
-			std::cout<<"error: context"<<std::endl;
+			throw std::invalid_argument("error: context");
 		}
 	}
 

@@ -10,10 +10,12 @@
 
 #include<memory>
 #include<map>
+#include<string>
 #include <CL/cl.h>
 #include "ClDevice.h"
 #include "ClContext.h"
 #include "ClCommandQueue.h"
+#include <stdexcept>
 
 class ClComputeParameter
 {
@@ -33,7 +35,7 @@ public:
 			if(CL_SUCCESS != err)
 			{
 				built = false;
-				std::cout<<"Error: compute parameter create failed: "<<name<<std::endl;
+				throw std::invalid_argument("Error: compute parameter create failed: ");
 			}
 			else
 			{
@@ -83,7 +85,7 @@ public:
 
 		if(CL_SUCCESS!=err)
 		{
-			std::cout<<"Error: program creation failure"<<std::endl;
+			throw std::invalid_argument("Error: program creation failure");
 			programBuilt=false;
 			kernelBuilt=false;
 		}
@@ -92,7 +94,7 @@ public:
 			err=clBuildProgram( program, 1, dv.devPtr(), nullptr, nullptr, nullptr );
 			if(CL_SUCCESS != err)
 			{
-				std::cout<<"Error: program compilation failure:"<<err<<std::endl;
+				throw std::invalid_argument("Error: program compilation failure");
 				programBuilt=false;
 				kernelBuilt=false;
 			}
@@ -104,7 +106,7 @@ public:
 				kernel = clCreateKernel( program, name, &err );
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"Error: kernel creation failure"<<std::endl;
+					throw std::invalid_argument("Error: kernel creation failure");
 					kernelBuilt = false;
 				}
 				else
@@ -134,7 +136,8 @@ public:
 
 				if(CL_SUCCESS != err)
 				{
-					std::cout<<"Error: kernel arg set: "<<((ClComputeParameter *)(e.second.get()))->getName()<<std::endl;
+					std::string errStr = ((ClComputeParameter*)(e.second.get()))->getName();
+					throw std::invalid_argument(std::string("Error: kernel arg set: ")+errStr); 
 				}
 			}
 		}
@@ -155,12 +158,12 @@ public:
 										&value,0,nullptr,nullptr);
 			if(CL_SUCCESS != err)
 			{
-				std::cout<<"error: (find)write buffer: setArgValueAsync: "<<name<<std::endl;
+				throw std::invalid_argument(std::string("error: (find)write buffer: setArgValueAsync: ") + name);
 			}
 		}
 		else
 		{
-			std::cout<<"Error: setArgValueAsync: "<<name<<std::endl;
+			throw std::invalid_argument(std::string("Error: setArgValueAsync: ") + name);
 		}
 	}
 
@@ -173,7 +176,7 @@ public:
 		cl_int err;
 		if(CL_SUCCESS!=(err=clEnqueueNDRangeKernel(q.getQueue(),kernel,1,&ofs,&numThr,&numThrLoc,0,nullptr,nullptr)))
 		{
-			std::cout<<"error: kernel run: err code="<<err<<std::endl;
+			throw std::invalid_argument(std::string("error: kernel run: err code=")+std::to_string(err));
 		}
 	}
 
@@ -193,12 +196,12 @@ public:
 									&value,0,nullptr,nullptr);
 			if(CL_SUCCESS != err)
 			{
-				std::cout<<"error: (find)write buffer: setArgValueAsync "<<std::endl;
+				throw std::invalid_argument("error: (find)write buffer: setArgValueAsync ");
 			}
 		}
 		else
 		{
-			std::cout<<"Error: setArgValueAsync"<<std::endl;
+			throw std::invalid_argument("Error: setArgValueAsync");
 		}
 	}
 

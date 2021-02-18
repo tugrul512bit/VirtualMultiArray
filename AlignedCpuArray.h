@@ -9,9 +9,8 @@
 #define ALIGNEDCPUARRAY_H_
 
 #include<iostream>
+#include <stdexcept>
 
-// just in case opencl-way of pinning fails
-//#include<sys/mman.h>
 
 #include<CL/cl.h>
 
@@ -40,12 +39,12 @@ public:
 			mem=clCreateBuffer(ctx,CL_MEM_READ_WRITE|CL_MEM_ALLOC_HOST_PTR,size*sizeof(T),nullptr,&err);
 			if(CL_SUCCESS!=err)
 			{
-				std::cout<<"error: mem alloc host ptr"<<std::endl;
+				throw std::invalid_argument("error: mem alloc host ptr");
 			}
 			arr=(T *)clEnqueueMapBuffer(cq,mem,CL_TRUE,CL_MAP_READ|CL_MAP_WRITE,0,size*sizeof(T),0,nullptr,nullptr,&err);
 			if(CL_SUCCESS!=err)
 			{
-				std::cout<<"error: map"<<std::endl;
+				throw std::invalid_argument("error: map");
 			}
 		}
 		else
@@ -59,9 +58,6 @@ public:
 			arr = (T *)aligned_alloc(alignment,sizeof(T)*size);
 #endif
 
-
-			// OS pin-array
-			//if(ENOMEM==mlock(arr,size)){std::cout<<"error: mlock"<<std::endl; pinned=false; };
 		}
 
 
@@ -77,17 +73,17 @@ public:
 			// opencl unpin
 			if(CL_SUCCESS!=clEnqueueUnmapMemObject(cq,mem,arr,0,nullptr,nullptr))
 			{
-				std::cout<<"error: unmap"<<std::endl;
+				throw std::invalid_argument("error: unmap");
 			}
 
 			if(CL_SUCCESS!=clReleaseMemObject(mem))
 			{
-				std::cout<<"error: release mem"<<std::endl;
+				throw std::invalid_argument("error: release mem");
 			}
 		}
 		else
 		{
-			//munlock(arr,size); // OS unpin
+		
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
 // windows

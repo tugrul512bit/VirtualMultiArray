@@ -389,28 +389,29 @@ private:
 			{
 				throw std::invalid_argument("error: write buffer");
 			}
-
-
+			
+			// download new
 			sel->setTargetGpuPage(selectedPage);
 			err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: read buffer");
 			}
-			// download new
-			clFinish(q->getQueue());
+			
+			
 		}
 		else
 		{
+			// download new
 			sel->setTargetGpuPage(selectedPage);
 			cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: write buffer");
-			}
-			// download new
-			clFinish(q->getQueue());
+			}				
 		}
+		
+		clFinish(q->getQueue());
 	}
 };
 

@@ -8,6 +8,7 @@
 #ifndef CLPLATFORM_H_
 #define CLPLATFORM_H_
 
+#include<stdexcept>
 #include<iostream>
 #include<memory>
 
@@ -36,7 +37,7 @@ public:
 		}
 		else
 		{
-			std::cout<<"error: platform"<<std::endl;
+			throw std::invalid_argument("error: platform");
 		}
 	}
 

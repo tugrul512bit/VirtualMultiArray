@@ -8,6 +8,7 @@
 #ifndef CLDEVICE_H_
 #define CLDEVICE_H_
 
+#include<stdexcept>
 #include<string>
 #include<iostream>
 #include<vector>
@@ -35,7 +36,9 @@ public:
 		device = std::shared_ptr<cl_device_id>(new cl_device_id[20],[&](cl_device_id * ptr){
 			for(unsigned int i=0;i<*n;i++)
 			{
-				if(CL_SUCCESS!=clReleaseDevice(device.get()[i])){std::cout<<"error: release device:"<<i<<std::endl;};
+				if(CL_SUCCESS!=clReleaseDevice(device.get()[i])){
+					throw std::invalid_argument(std::string("error: release device:")+std::to_string(i));
+				};
 			}
 			delete [] ptr;
 		});

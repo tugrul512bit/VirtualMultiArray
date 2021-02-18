@@ -11,6 +11,7 @@
 #include<iostream>
 #include<memory>
 #include<CL/cl.h>
+#include<stdexcept>
 
 // wrapper for graphics card data storage
 // each instance stores all data of a virtual card. Using more virtual cards (which are generated from a common physical card) make this smaller sized.
@@ -37,7 +38,7 @@ public:
 		*mem = clCreateBuffer( *context.ctxPtr(), CL_MEM_READ_WRITE,sizeof(T) * *n,NULL,&err);
 		if(CL_SUCCESS != err)
 		{
-			std::cout<<"error: buffer"<<std::endl;
+			throw std::invalid_argument("error: buffer");
 		}
 	}
 
