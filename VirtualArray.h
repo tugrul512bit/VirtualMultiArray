@@ -182,7 +182,7 @@ public:
 			cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel->getTargetGpuPage())* szp,sizeof(T)* szp,sel->ptr(),0,nullptr,nullptr);
 			if(CL_SUCCESS != err)
 			{
-				std::cout<<"error: (edited)write buffer (copyToBuffer): "<<std::endl;
+				throw std::invalid_argument("error: flush page ");
 			}
 			clFinish(q->getQueue());
 		}
@@ -254,9 +254,7 @@ public:
 					   if(cmpCtr == mSize)
 					   {
 	                        
-							size_t adr = atom_add(&findList[0],(size_t)1);
-                            if((id==60000) && ((adr+1)<=sz)) printf(" { %d %d %d %d } ",arr[oSizeI0],arr[oSizeI0+1],arr[oSizeI0+2],arr[oSizeI0+3]);   
-                            if((id==30000) && ((adr+1)<=sz)) printf(" { %d %d %d %d } ",arr[oSizeI0],arr[oSizeI0+1],arr[oSizeI0+2],arr[oSizeI0+3]);                      
+							size_t adr = atom_add(&findList[0],(size_t)1);                 
 	                        if((adr+1)<=sz)
 							   findList[adr+1]=id;
 	                        //mem_fence(CLK_GLOBAL_MEM_FENCE);
