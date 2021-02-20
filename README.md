@@ -31,7 +31,6 @@ int main(int argC, char ** argV)
 	catch (std::exception& ex)
 	{
 		std::cout << ex.what();
-		return 0;
 	}
 	return 0;
 }
