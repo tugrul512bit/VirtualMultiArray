@@ -15,16 +15,24 @@ Simplest usage:
 
 int main(int argC, char ** argV)
 {
-	GraphicsCardSupplyDepot d;
-	size_t numElements = 1000;
-	int pageSize = 10;
-	int activePagesPerGpuInstance = 5;
-	
-	VirtualMultiArray<int> intArr(numElements,d.requestGpus(),pageSize,activePagesPerGpuInstance);
-	
-	intArr[3]=5; // or intArr.set(3,5);
-	int var = intArr[3]; // or intArr.get(3);
-	std::cout<<var<<std::endl;
+	try
+	{
+		GraphicsCardSupplyDepot d;
+		size_t numElements = 1000;
+		int pageSize = 10;
+		int activePagesPerGpuInstance = 5;
+
+		VirtualMultiArray<int> intArr(numElements,d.requestGpus(),pageSize,activePagesPerGpuInstance);
+
+		intArr[3]=5; // or intArr.set(3,5);
+		int var = intArr[3]; // or intArr.get(3);
+		std::cout<<var<<std::endl;
+	}
+	catch (std::exception& ex)
+	{
+		std::cout << ex.what();
+		return 0;
+	}
 	return 0;
 }
 ```
