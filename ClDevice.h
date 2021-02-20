@@ -83,7 +83,7 @@ public:
 		}
 		else
 		{
-			std::cout<<"error: device"<<std::endl;
+			throw std::invalid_argument("error: device");
 		}
 	}
 
