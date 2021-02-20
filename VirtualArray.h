@@ -179,7 +179,7 @@ public:
 		Page<T> * sel = cpu.get()+pageIdx;
 		if(sel->isEdited())
 		{
-			cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel.getTargetGpuPage())* szp,sizeof(T)* szp,sel->ptr(),0,nullptr,nullptr);
+			cl_int err=clEnqueueWriteBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel->getTargetGpuPage())* szp,sizeof(T)* szp,sel->ptr(),0,nullptr,nullptr);
 			if(CL_SUCCESS != err)
 			{
 				std::cout<<"error: (edited)write buffer (copyToBuffer): "<<std::endl;
