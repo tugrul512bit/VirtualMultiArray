@@ -15,20 +15,23 @@
 #include <omp.h>
 #include <fstream>
 #include <string>
+#include <filesystem>
 
+// FASTA file indexer that caches bits of data in video-memory
 // supports maximum 12 physical graphics cards (with combined video memory size of them)
 // supports 10 million indices
 // uses RAM temporarily = (total video memory size in GB) * 80MB = 100 GB total VRAM means 8GB temporary RAM usage
 class FastaGeneIndexer
 {
 public:
+	FastaGeneIndexer(){}
 	FastaGeneIndexer(std::string fileName){
 		// get file size
 		size_t bytes = countFileBytes(fileName);
-		std::cout<<bytes<<std::endl;
+
 
 		// allocate virtual array
-		const size_t pageSize= 1024*32;
+		const size_t pageSize= 1024*64;
 		const int maxActivePagesPerGpu = 10;
 
 		GraphicsCardSupplyDepot depot;
@@ -40,14 +43,22 @@ public:
 		// prepare index
 		char test='>'; // fasta format gene start marker
 		index = data.find(test, test, 10000000);
-		std::sort(index.begin(),index.end());
-		size_t ctr = 0;
 		size_t nId = index.size();
-		while(ctr+index[nId-1] < bytes && data.get(ctr+index[nId-1])!='\0')
+		if(nId==0)
+		{
+			throw std::invalid_argument("Error: file without FASTA formatted gene sequence.");
+		}
+		std::sort(index.begin(),index.end());
+
+		size_t ctr = 0;
+
+		while(((ctr+index[nId-1]) < bytes) && (data.get(ctr+index[nId-1])!='\0'))
 		{
 			ctr++;
 		}
+
 		index.push_back(ctr+index[nId-1]);// marking end of data
+
 	}
 
 	std::string get(size_t id)
@@ -62,16 +73,23 @@ public:
 		return std::string(dat.data());
 	}
 
+	// get number of bytes in a gene at index id
 	size_t getSize(size_t id)
 	{
 		return index[id+1] - index[id];
 	}
 
+	// number of indexed genes
 	size_t n()
 	{
 		return index.size()-1;
 	}
 
+	// returns number of opencl data channels used
+	int numGpuChannels()
+	{
+		return data.totalGpuChannels();
+	}
 private:
 	// list of indices of each gene
 	std::vector<size_t> index;
@@ -79,28 +97,18 @@ private:
 	// byte data in video memories
 	VirtualMultiArray<char> data;
 
-	// returns file size in resolution of 1024*1024 bytes (for the paging performance of virtual array)
+	// returns file size in resolution of 1024*1024*16 bytes (for the paging performance of virtual array)
 	// will require to set '\0' for excessive bytes of last block
 	size_t countFileBytes(std::string inFile)
 	{
-		size_t result=0;
-		std::ifstream bigFile(inFile);
-		constexpr size_t bufferSize = 1024*1024;
-		std::vector<char> buf;
-		buf.resize(bufferSize);
-		while (bigFile)
-		{
-			bigFile.read(buf.data(), bufferSize);
-			result += bufferSize;
-		}
-
-		return result;
+		size_t size = std::filesystem::file_size(inFile);
+		return size + 1024*1024*16 - ( size%(1024*1024*16) );
 	}
 
 	void readFile(std::string inFile, VirtualMultiArray<char> & va, const size_t n, const size_t pageSize)
 	{
 		std::ifstream bigFile(inFile);
-		constexpr size_t bufferSize = 1024*1024;
+		constexpr size_t bufferSize = 1024*1024*16;
 		std::vector<char> buf;buf.resize(bufferSize);
 		size_t ctr = 0;
 
@@ -110,12 +118,15 @@ private:
 				throw std::invalid_argument("Error: array overflow.");
 
 			// clear unused bytes
-			if(ctr<n-1024*1024*2)
+			if(ctr>n-bufferSize*3)
 			{
 				for(int i=0;i<bufferSize;i++)
 					buf[i]='\0';
 			}
+
 			bigFile.read(buf.data(), bufferSize);
+
+
 
 			#pragma omp parallel for
 			for(size_t i=0;i<bufferSize/pageSize;i++)
