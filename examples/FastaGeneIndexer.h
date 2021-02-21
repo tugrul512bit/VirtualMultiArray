@@ -17,6 +17,7 @@
 #include <string>
 #include <filesystem>
 
+// C++17
 // FASTA file indexer that caches bits of data in video-memory
 // supports maximum 12 physical graphics cards (with combined video memory size of them)
 // supports 10 million indices
@@ -31,7 +32,7 @@ public:
 
 
 		// allocate virtual array
-		const size_t pageSize= 1024*64;
+		const size_t pageSize= 1024*32;
 		const int maxActivePagesPerGpu = 10;
 
 		GraphicsCardSupplyDepot depot;
@@ -61,6 +62,9 @@ public:
 
 	}
 
+	// get a gene sequence at index=id
+	// random access latency (with pcie v2.0 4x, fx8150-2.1GHz, 1333MHz ddr3) is 5-10 microseconds
+	// thread-safe
 	std::string get(size_t id)
 	{
 		// last element is just marker
@@ -91,6 +95,7 @@ public:
 		return data.totalGpuChannels();
 	}
 private:
+
 	// list of indices of each gene
 	std::vector<size_t> index;
 
