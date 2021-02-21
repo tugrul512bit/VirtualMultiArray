@@ -68,22 +68,23 @@ public:
 
 	~AlignedCpuArray()
 	{
+		// todo: don't throw from destructor
 		if(pinned)
 		{
 			// opencl unpin
 			if(CL_SUCCESS!=clEnqueueUnmapMemObject(cq,mem,arr,0,nullptr,nullptr))
 			{
-				throw std::invalid_argument("error: unmap");
+				std::cout<<"error: mem unmap"<<std::endl;
 			}
 
 			if(CL_SUCCESS!=clReleaseMemObject(mem))
 			{
-				throw std::invalid_argument("error: release mem");
+				std::cout<<"error: release mem"<<std::endl;
 			}
 		}
 		else
 		{
-		
+
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
 // windows

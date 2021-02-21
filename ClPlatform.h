@@ -31,11 +31,7 @@ public:
 		n=std::make_shared<unsigned int>();
 		*n=0;
 
-		if(CL_SUCCESS == clGetPlatformIDs( 5, platform.get(), n.get() ))
-		{
-			 //std::cout<<"platform gathered: "<<*n<<std::endl;
-		}
-		else
+		if(CL_SUCCESS != clGetPlatformIDs( 5, platform.get(), n.get() ))
 		{
 			throw std::invalid_argument("error: platform");
 		}

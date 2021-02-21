@@ -23,7 +23,7 @@ public:
 	ClContext(ClDevice device, int index=0)
 	{
 		context = std::shared_ptr<cl_context>(new cl_context(),[](cl_context * ptr){ if(CL_SUCCESS!=clReleaseContext(*ptr)){ 
-			throw std::invalid_argument("error: release context");
+			std::cout<<"error: release context"<<std::endl;
 		} delete ptr;});
 		cl_int err;
 		*context = clCreateContext(

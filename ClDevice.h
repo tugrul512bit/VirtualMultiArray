@@ -37,7 +37,7 @@ public:
 			for(unsigned int i=0;i<*n;i++)
 			{
 				if(CL_SUCCESS!=clReleaseDevice(device.get()[i])){
-					throw std::invalid_argument(std::string("error: release device:")+std::to_string(i));
+					std::cout<<"error: release device:"<<std::to_string(i)<<std::endl;
 				};
 			}
 			delete [] ptr;

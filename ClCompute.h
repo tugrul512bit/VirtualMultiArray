@@ -58,7 +58,7 @@ public:
 	cl_mem getMem(){ return *mem; }
 	cl_mem * getMemPtr(){ return mem.get(); }
 
-	~ClComputeParameter(){ if(built) clReleaseMemObject(*mem);}
+	~ClComputeParameter(){ if(built){ if(CL_SUCCESS!=clReleaseMemObject(*mem)){ std::cout<<"Error: release kernel parameter mem object"<<std::endl;} }}
 private:
 	std::unique_ptr<cl_mem> mem;
 	int argIndex;
