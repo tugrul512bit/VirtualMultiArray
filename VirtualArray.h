@@ -205,7 +205,7 @@ public:
 		if(computeFind==nullptr)
 		{
 			computeFind = std::unique_ptr<ClCompute>(new ClCompute(*ctx,*dv,std::string(R"(
-                     #define __N__ )")+std::to_string(sz)+std::string(R"(
+                     #define __N__ ( )")+std::to_string(sz)+std::string(R"(UL )
                      #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
 	                 __kernel void )")+std::string(R"(find)")+std::to_string(vaId)+ std::string(R"(
@@ -237,7 +237,7 @@ public:
                        {
 						   for(size_t i=oSizeI0; i<oSizeI1; i+=4)
 						   {
-							   cmpCtr+=4*(*((__global int*)(arr+i)) == *((__global int*)(memberVal+valCtr)));                       
+							   cmpCtr+=(4*(*((__global int*)(arr+i)) == *((__global int*)(memberVal+valCtr))));                       
 							   valCtr+=4;
 						   }
                        }
@@ -280,7 +280,7 @@ public:
 		}
 
 		// if search result list length is not same as the last one
-		if(foundIdListSize+1*sizeof(size_t)!=computeFind->getArgSizeBytes("found index list"))
+		if(((foundIdListSize+1)*sizeof(size_t))!=computeFind->getArgSizeBytes("found index list"))
 		{
 			// allocate new resources
 			computeFind->addParameter(*ctx,"found index list",(foundIdListSize + 1)*sizeof(size_t),2);
@@ -288,12 +288,12 @@ public:
 		}
 
 		// set argument values of kernel
-		computeFind->setArgValueAsync("member offset",*q,ofs);
-		computeFind->setArgValueAsync("member value",*q,val);
-		computeFind->setArgValueAsync("found index list",*q,*found.data());
-		computeFind->setArgValueAsync("object size",*q,objSizeTmp);
-		computeFind->setArgValueAsync("member size",*q,memberSizeTmp);
-		computeFind->setArgValueAsync("found index list size",*q,foundIdListSize);
+		computeFind->setArgValueAsync("member offset",*q,&ofs);
+		computeFind->setArgValueAsync("member value",*q,&val);
+		computeFind->setArgValueAsync("found index list",*q,found.data());
+		computeFind->setArgValueAsync("object size",*q,&objSizeTmp);
+		computeFind->setArgValueAsync("member size",*q,&memberSizeTmp);
+		computeFind->setArgValueAsync("found index list size",*q,&foundIdListSize);
 
 		// run kernel
 		computeFind->runAsync(*q,sz+256-(sz%256),256);
@@ -310,29 +310,13 @@ public:
 		// empty cells deleted
 		if(numFound>0)
 		{
-			size_t szF = found.size();
-			if(szF>2)
-			{
-				size_t len = szF - 1;
-				if(len>numFound)
-				{
-					size_t numNotFound = len - numFound;
-					for(size_t del = 0;del<numNotFound;del++)
-					{
-						found.erase(found.end()-1);
-					}
-				}
-			}
+			return std::vector<size_t>(found.begin()+1,found.begin()+1+numFound);
 		}
 		else
 		{
 			return std::vector<size_t>();
 		}
 
-		// atomic counter deleted
-		found.erase(found.begin());
-
-		return found;
 	}
 
 	int getNumP()

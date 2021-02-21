@@ -145,7 +145,7 @@ public:
 
 	// reads "size" bytes from value
 	template<typename D>
-	void setArgValueAsync(std::string name, ClCommandQueue q, const D & value)
+	void setArgValueAsync(std::string name, ClCommandQueue q, const D * valuePtr)
 	{
 		auto it = parameters.find(name);
 		if(it!=parameters.end())
@@ -155,7 +155,7 @@ public:
 										it->second->getMem(),
 										CL_FALSE,0,
 										it->second->getSize(),
-										&value,0,nullptr,nullptr);
+										valuePtr,0,nullptr,nullptr);
 			if(CL_SUCCESS != err)
 			{
 				throw std::invalid_argument(std::string("error: (find)write buffer: setArgValueAsync: ") + name);

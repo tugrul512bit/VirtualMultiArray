@@ -17,20 +17,26 @@
 class CpuBenchmarker
 {
 public:
-	CpuBenchmarker():CpuBenchmarker(0,"")
+	CpuBenchmarker():CpuBenchmarker(0,"",0)
 	{
 
 	}
 
-	CpuBenchmarker(size_t bytesToBench):CpuBenchmarker(bytesToBench,"")
+	CpuBenchmarker(size_t bytesToBench):CpuBenchmarker(bytesToBench,"",0)
 	{
 
 	}
 
-	CpuBenchmarker(size_t bytesToBench, std::string infoExtra):t1(std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::system_clock::now().time_since_epoch()))
+	CpuBenchmarker(size_t bytesToBench, std::string infoExtra):CpuBenchmarker(bytesToBench,infoExtra,0)
+	{
+
+	}
+
+	CpuBenchmarker(size_t bytesToBench, std::string infoExtra, size_t countForThroughput):t1(std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::system_clock::now().time_since_epoch()))
 	{
 		bytes=bytesToBench;
 		info=infoExtra;
+		count = countForThroughput;
 	}
 
 	~CpuBenchmarker()
@@ -42,9 +48,17 @@ public:
 		std::cout<<t<<" nanoseconds    ";
 		if(bytes>0)
 		{
+			std::cout <<" (bandwidth = ";
 		    std::cout << std::fixed;
 		    std::cout << std::setprecision(2);
-			std::cout <<   (bytes/(((double)t)/1000000000.0))/1000000.0 <<" MB/s";
+			std::cout <<   (bytes/(((double)t)/1000000000.0))/1000000.0 <<" MB/s)     ";
+		}
+		if(count>0)
+		{
+			std::cout<<" (throughput = ";
+		    std::cout << std::fixed;
+		    std::cout << std::setprecision(2);
+			std::cout <<   (((double)t)/count) <<" nanoseconds per iteration) ";
 		}
 		std::cout<<std::endl;
 	}
@@ -52,6 +66,7 @@ public:
 private:
 	std::chrono::nanoseconds t1;
 	size_t bytes;
+	size_t count;
 	std::string info;
 };
 

@@ -170,6 +170,7 @@ public:
 		size_t extraAllocDeviceIndex = numPage%nDevice; // 0: all equal, 1: first device extra allocation, 2: second device, ...
 
 
+		openclChannels = gpuCloneMult;
 
 		int ctr = 0;
 		std::vector<int> actuallyUsedPhysicalGpuIndex;
@@ -209,6 +210,15 @@ public:
 		}
 	}
 
+	int totalGpuChannels()
+	{
+		int result=0;
+		for(int e:openclChannels)
+		{
+			result += e;
+		}
+		return result;
+	}
 
 	// get data at index
 	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
@@ -524,13 +534,13 @@ public:
 					const int szResultI = resultI.size();
 					for(size_t k = 0; k<szResultI; k++)
 					{
-
 						size_t gpuPage = (resultI[k]/pageSize);
 						size_t realPage = (gpuPage * numDevice) + i;
 						size_t realIndex = (realPage * pageSize) + (resultI[k]%pageSize);
 						resultI[k]=realIndex;
 					}
 
+					if(szResultI>0)
 					{
 						std::unique_lock<std::mutex> lock(mGlobal);
 						std::move(resultI.begin(),resultI.end(),std::back_inserter(results));
@@ -576,6 +586,7 @@ private:
 	size_t pageSize;
 	std::shared_ptr<VirtualArray<T>> va;
 	std::shared_ptr<std::mutex> pageLock;
+	std::vector<int> openclChannels;
 };
 
 
