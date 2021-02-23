@@ -24,6 +24,26 @@
 // C++17
 
 
+inline void storeBit(unsigned char & data, const bool value, const int pos) noexcept
+{
+	if(value)
+	{
+		data =  (data | (1<<pos));
+	}
+	else
+	{
+		data = (data & ~(1<<pos));
+	}
+}
+
+
+
+inline bool loadBit(const unsigned char & data, const int pos) noexcept
+{
+	return (data>>pos)&1;
+}
+
+
 template<typename T>
 class HuffmanTree
 {
@@ -145,20 +165,43 @@ public:
 	T followBits(const std::vector<bool> & path, int & idx) const
 	{
 		T result;
-		Node curNode=root;
+		const Node * curNode=&root;
 		bool work=true;
 
 		while(work)
 		{
 			int p = path[idx];
-			if(curNode.isLeaf)
+			if(curNode->isLeaf)
 			{
-				result=curNode.data;
+				result=curNode->data;
 				work=false;
 			}
 			else
 			{
-				curNode = referenceVec[curNode.leaf2*p + curNode.leaf1*(1-p)];
+				curNode = referenceVec.data()+(curNode->leaf2*p + curNode->leaf1*(1-p));
+				idx++;
+			}
+		}
+		return result;
+	}
+
+	T followBitsDirect(const unsigned char * path, size_t & idx, const size_t & ofs) const
+	{
+		T result;
+		const Node * curNode=&root;
+		bool work=true;
+
+		while(work)
+		{
+			int p = loadBit(path[(idx>>3)-ofs],idx&7);
+			if(curNode->isLeaf)
+			{
+				result=curNode->data;
+				work=false;
+			}
+			else
+			{
+				curNode = referenceVec.data()+(curNode->leaf2*p + curNode->leaf1*(1-p));
 				idx++;
 			}
 		}
@@ -246,21 +289,15 @@ public:
 		std::string result;
 		size_t i0 = descriptorBeginBit[id];
 		unsigned int r0 = descriptorBitLength[id];
-		const int i03 = (i0>>3);
+		const size_t i03 = (i0>>3);
 		const int r1 = (r0>>3) + 1;
-		const size_t i2 = i0 + r0;
 		std::vector<unsigned char> tmpData = data.readOnlyGetN(i03,r1);
-		std::vector<bool> path;
-		for(size_t i=i0;i<i2;i++)
-		{
-			unsigned char tmp = tmpData[(i>>3) - i03];
-			path.push_back(loadBit(tmp,i&7));
-		}
-		int pos = 0;
-		const int pL = path.size();
+		size_t pos = i0;
+		const unsigned int pL = r0+pos;
+		const unsigned char * dt = tmpData.data();
 		while(pos<pL)
 		{
-			result += descriptorCompression.followBits(path,pos);
+			result += descriptorCompression.followBitsDirect(dt,pos,i03);
 		}
 		return result;
 	}
@@ -271,21 +308,15 @@ public:
 		std::string result;
 		size_t i0 = sequenceBeginBit[id];
 		unsigned int r0 = sequenceBitLength[id];
-		const int i03 = (i0>>3);
+		const size_t i03 = (i0>>3);
 		const int r1 = (r0>>3) + 1;
-		const size_t i2 = i0 + r0;
 		std::vector<unsigned char> tmpData = data.readOnlyGetN(i03,r1);
-		std::vector<bool> path;
-		for(size_t i=i0;i<i2;i++)
-		{
-			unsigned char tmp = tmpData[(i>>3) - i03];
-			path.push_back(loadBit(tmp,i&7));
-		}
-		int pos = 0;
-		const int pL = path.size();
+		size_t pos = i0;
+		const unsigned int pL = r0+pos;
+		const unsigned char * dt = tmpData.data();
 		while(pos<pL)
 		{
-			result += sequenceCompression.followBits(path,pos);
+			result += sequenceCompression.followBitsDirect(dt,pos,i03);
 		}
 		return result;
 	}
@@ -510,18 +541,6 @@ private:
 			ctr+=bufferSize;
 		}
 		return descriptorBits + sequenceBits;
-	}
-
-	void storeBit(unsigned char & data, const bool value, const int pos) const
-	{
-		unsigned char reset = (data & ~(1<<pos));
-		unsigned char set = (data | (1<<pos));
-		data = (value?set:reset);
-	}
-
-	bool loadBit(const unsigned char & data, const int pos) const
-	{
-		return (data>>pos)&1;
 	}
 
 
