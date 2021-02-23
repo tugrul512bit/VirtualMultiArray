@@ -21,16 +21,20 @@
 #include <map>
 
 
+// C++17
+
+
 template<typename T>
 class HuffmanTree
 {
 	struct Node
 	{
 		size_t count;
-		T data;
 		int self;
 		int leaf1;
 		int leaf2;
+		T data;
+		bool isLeaf;
 	};
 
 public:
@@ -48,7 +52,7 @@ public:
 		}
 	}
 
-	void generateTree()
+	void generateTree(const bool debug=false)
 	{
 		std::vector<Node> sortedNodes;
 
@@ -61,6 +65,7 @@ public:
 			node.self=ctr;
 			node.leaf1=-1;
 			node.leaf2=-1;
+			node.isLeaf=true;
 			referenceVec.push_back(node);
 			sortedNodes.push_back(node);
 			ctr++;
@@ -78,6 +83,7 @@ public:
 			newNode.leaf1 = node1.self;
 			newNode.leaf2 = node2.self;
 			newNode.self = ctr;
+			newNode.isLeaf=false;
 			sortedNodes.erase(sortedNodes.begin());
 			sortedNodes.erase(sortedNodes.begin());
 			sortedNodes.push_back(newNode);
@@ -115,17 +121,20 @@ public:
 		std::vector<bool> rootPath;
 		g(root,rootPath);
 
-		std::cout<<"-------------------------------------"<<std::endl;
-		for(const auto & e:encodeMap)
+		if(debug)
 		{
-			std::cout<<e.first<<": ";
-			for(const auto & f:e.second)
+			std::cout<<"-------------------------------------"<<std::endl;
+			for(const auto & e:encodeMap)
 			{
-				std::cout<<f<<" ";
+				std::cout<<e.first<<": ";
+				for(const auto & f:e.second)
+				{
+					std::cout<<f<<" ";
+				}
+				std::cout<<std::endl;
 			}
-			std::cout<<std::endl;
+			std::cout<<"-------------------------------------"<<std::endl;
 		}
-		std::cout<<"-------------------------------------"<<std::endl;
 	}
 
 	std::vector<bool> generateBits(T data)
@@ -138,22 +147,19 @@ public:
 		T result;
 		Node curNode=root;
 		bool work=true;
+
 		while(work)
 		{
-			if(path[idx] && (curNode.leaf2!=-1))
+			int p = path[idx];
+			if(curNode.isLeaf)
 			{
-				curNode = referenceVec[curNode.leaf2];
-				idx++;
-			}
-			else if((!path[idx]) && (curNode.leaf1!=-1))
-			{
-				curNode = referenceVec[curNode.leaf1];
-				idx++;
+				result=curNode.data;
+				work=false;
 			}
 			else
 			{
-				result = curNode.data;
-				work = false;
+				curNode = referenceVec[curNode.leaf2*p + curNode.leaf1*(1-p)];
+				idx++;
 			}
 		}
 		return result;
@@ -168,7 +174,6 @@ private:
 
 };
 
-// C++17
 // FASTA file indexer that caches bits of data in video-memory
 // supports maximum 12 physical graphics cards (with combined video memory size of them)
 // supports 10 million indices
@@ -408,8 +413,8 @@ private:
 			ctr+=bufferSize;
 		}
 
-		descriptorCompression.generateTree();
-		sequenceCompression.generateTree();
+		descriptorCompression.generateTree(debug);
+		sequenceCompression.generateTree(debug);
 	}
 
 	size_t countBits(std::string inFile, size_t bytes, const bool debug=false)
@@ -538,7 +543,7 @@ private:
 		unsigned char byteValue=0;
 		int byteBitIndex=0;
 		bool needsWrite=false;
-		size_t ct0=0;
+
 		bool encodingDescriptor = false;
 		bool encodingSequence = false;
 		int encodedLength = 0;
@@ -572,7 +577,7 @@ private:
 				// if descriptor sign found
 				if((elm=='>')/* && (!encodingDescriptor)*/)
 				{
-					ct0++;
+
 					// enable descriptor tree building
 					if(encodingSequence)
 					{
@@ -679,7 +684,7 @@ private:
 			data.set(writtenBytes,byteValue);
 			writtenBytes++;
 		}
-		std::cout<<"ct0="<<ct0<<std::endl;
+
 		return writtenBytes;
 	}
 };
