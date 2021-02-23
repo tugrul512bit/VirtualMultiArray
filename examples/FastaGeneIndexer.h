@@ -16,6 +16,157 @@
 #include <fstream>
 #include <string>
 #include <filesystem>
+#include <mutex>
+#include <vector>
+#include <map>
+
+
+template<typename T>
+class HuffmanTree
+{
+	struct Node
+	{
+		size_t count;
+		T data;
+		int self;
+		int leaf1;
+		int leaf2;
+	};
+
+public:
+	HuffmanTree(){}
+
+	void add(T data)
+	{
+		if(referenceMap.find(data)==referenceMap.end())
+		{
+			referenceMap[data]=1;
+		}
+		else
+		{
+			referenceMap[data]++;
+		}
+	}
+
+	void generateTree()
+	{
+		std::vector<Node> sortedNodes;
+
+		int ctr=0;
+		for(auto & e : referenceMap)
+		{
+			Node node;
+			node.data=e.first;
+			node.count=e.second;
+			node.self=ctr;
+			node.leaf1=-1;
+			node.leaf2=-1;
+			referenceVec.push_back(node);
+			sortedNodes.push_back(node);
+			ctr++;
+		}
+
+		std::sort(sortedNodes.begin(), sortedNodes.end(),[](const Node & n1, const Node & n2){ return n1.count<n2.count;});
+
+		while(sortedNodes.size()>1)
+		{
+			Node node1 = sortedNodes[0];
+			Node node2 = sortedNodes[1];
+			Node newNode;
+			newNode.count = node1.count + node2.count;
+			newNode.data=0;
+			newNode.leaf1 = node1.self;
+			newNode.leaf2 = node2.self;
+			newNode.self = ctr;
+			sortedNodes.erase(sortedNodes.begin());
+			sortedNodes.erase(sortedNodes.begin());
+			sortedNodes.push_back(newNode);
+
+			referenceVec.push_back(newNode);
+			std::sort(sortedNodes.begin(), sortedNodes.end(),[](const Node & n1, const Node & n2){ return n1.count<n2.count;});
+			ctr++;
+		}
+
+		root = sortedNodes[0];
+
+
+		std::function<void(Node,std::vector<bool>)> g = [&](Node node, std::vector<bool> path){
+			if(node.leaf1!=-1)
+			{
+				std::vector<bool> path1 = path;
+				path1.push_back(false);
+				g(referenceVec[node.leaf1],path1);
+			}
+
+			if(node.leaf2!=-1)
+			{
+				std::vector<bool> path2 = path;
+				path2.push_back(true);
+				g(referenceVec[node.leaf2],path2);
+			}
+
+			if((node.leaf1 == -1) && (node.leaf2 == -1))
+			{
+				encodeMap[node.data]=path;
+			}
+
+		};
+
+		std::vector<bool> rootPath;
+		g(root,rootPath);
+
+		std::cout<<"-------------------------------------"<<std::endl;
+		for(const auto & e:encodeMap)
+		{
+			std::cout<<e.first<<": ";
+			for(const auto & f:e.second)
+			{
+				std::cout<<f<<" ";
+			}
+			std::cout<<std::endl;
+		}
+		std::cout<<"-------------------------------------"<<std::endl;
+	}
+
+	std::vector<bool> generateBits(T data)
+	{
+		return encodeMap[data];
+	}
+
+	T followBits(const std::vector<bool> & path, int & idx) const
+	{
+		T result;
+		Node curNode=root;
+		bool work=true;
+		while(work)
+		{
+			if(path[idx] && (curNode.leaf2!=-1))
+			{
+				curNode = referenceVec[curNode.leaf2];
+				idx++;
+			}
+			else if((!path[idx]) && (curNode.leaf1!=-1))
+			{
+				curNode = referenceVec[curNode.leaf1];
+				idx++;
+			}
+			else
+			{
+				result = curNode.data;
+				work = false;
+			}
+		}
+		return result;
+	}
+
+	~HuffmanTree(){}
+private:
+	Node root;
+	std::vector<Node> referenceVec;
+	std::map<T,size_t> referenceMap;
+	std::map<T,std::vector<bool>> encodeMap;
+
+};
 
 // C++17
 // FASTA file indexer that caches bits of data in video-memory
@@ -26,81 +177,140 @@ class FastaGeneIndexer
 {
 public:
 	FastaGeneIndexer(){}
-	FastaGeneIndexer(std::string fileName){
+	FastaGeneIndexer(std::string fileName, bool debug=false){
 		// get file size
 		size_t bytes = countFileBytes(fileName);
 
+		// first-pass for Huffman encoding: generate Huffman tree
+		// second-pass for Huffman encoding: count total bits for encoded file
+		// third-pass: fill virtual array with encoded bits
 
-		// allocate virtual array
-		const size_t pageSize= 1024*32;
-		const int maxActivePagesPerGpu = 10;
 
-		GraphicsCardSupplyDepot depot;
-		data = VirtualMultiArray<char>(bytes, depot.requestGpus(), pageSize, maxActivePagesPerGpu, {1,1,1,1,1,1,1,1,1,1,1,1},VirtualMultiArray<char>::MemMult::UseVramRatios);
 
-		// fill array with file data
-		readFile(fileName,data,bytes,pageSize);
-
-		// prepare index
-		char test='>'; // fasta format gene start marker
-		index = data.find(test, test, 10000000);
-		size_t nId = index.size();
-		if(nId==0)
+		if(debug)
 		{
-			throw std::invalid_argument("Error: file without FASTA formatted gene sequence.");
-		}
-		std::sort(index.begin(),index.end());
-
-		size_t ctr = 0;
-
-		while(((ctr+index[nId-1]) < bytes) && (data.get(ctr+index[nId-1])!='\0'))
-		{
-			ctr++;
+			std::cout<<"total bytes (padded to 16-MB multiple): "<<bytes<<std::endl;
+			std::cout<<"Generating Huffman Tree for descriptors and sequences."<<std::endl;
 		}
 
-		index.push_back(ctr+index[nId-1]);// marking end of data
+		// Huffman Tree generation
+		generateHuffmanTree(fileName,bytes,debug);
 
+		if(debug)
+			std::cout<<"Counting number of bits to produce."<<std::endl;
+
+		// bit counting for processed file
+		size_t totalBits = countBits(fileName,bytes,debug);
+
+		if(debug)
+		{
+			std::cout<<"descriptor: "<<descriptorBits<<" bits, sequence: "<<sequenceBits<<" bits"<<std::endl;
+			std::cout<<"Compression: from "<<(bytes/1000000.0)<<" MB (padded to 16MB-multiple) to "<<(totalBits/8 + 1)/1000000.0<<" MB"<<std::endl;
+			std::cout<<"Allocating virtual array."<<std::endl;
+		}
+
+
+
+		// alllocate
+		size_t totalBytes = (totalBits/8 + 1);
+		size_t pageSize = 1024*32;
+		size_t n = totalBytes + pageSize - (totalBytes%pageSize);
+		{
+			GraphicsCardSupplyDepot gpu;
+			data = VirtualMultiArray<unsigned char>(n,gpu.requestGpus(),pageSize,10,{1,1,1,1,1,1,1,1,1,1,1,1},VirtualMultiArray<unsigned char>::MemMult::UseVramRatios);
+		}
+
+		if(debug)
+			std::cout<<"Filling virtual array with bits of file."<<std::endl;
+
+		{
+			size_t writtenBytes = readFileIntoArray(fileName, bytes, debug);
+
+			if(debug)
+			{
+				std::cout<<"Written "<<writtenBytes<<" bytes ("<<writtenBytes/1000000.0<<" MB) to virtual array"<<std::endl;
+				std::cout<<"Descriptor: "<<descriptorBeginBit.size()<<" "<<descriptorBitLength.size()<<std::endl;
+				std::cout<<"Sequence: "<<sequenceBeginBit.size()<<" "<<sequenceBitLength.size()<<std::endl;
+			}
+		}
 	}
 
-	// get a gene sequence at index=id
-	// random access latency (with pcie v2.0 4x, fx8150-2.1GHz, 1333MHz ddr3) is 5-10 microseconds
+	// get a gene descriptor at index=id without line-feed nor '>' characters
+	std::string getDescriptor(size_t id)
+	{
+		std::string result;
+		size_t i0 = descriptorBeginBit[id];
+		unsigned int r0 = descriptorBitLength[id];
+		const int i03 = (i0>>3);
+		const int r1 = (r0>>3) + 1;
+		const size_t i2 = i0 + r0;
+		std::vector<unsigned char> tmpData = data.readOnlyGetN(i03,r1);
+		std::vector<bool> path;
+		for(size_t i=i0;i<i2;i++)
+		{
+			unsigned char tmp = tmpData[(i>>3) - i03];
+			path.push_back(loadBit(tmp,i&7));
+		}
+		int pos = 0;
+		const int pL = path.size();
+		while(pos<pL)
+		{
+			result += descriptorCompression.followBits(path,pos);
+		}
+		return result;
+	}
+
+	// get a gene sequence at index=id without line-feed characters
+	std::string getSequence(size_t id)
+	{
+		std::string result;
+		size_t i0 = sequenceBeginBit[id];
+		unsigned int r0 = sequenceBitLength[id];
+		const int i03 = (i0>>3);
+		const int r1 = (r0>>3) + 1;
+		const size_t i2 = i0 + r0;
+		std::vector<unsigned char> tmpData = data.readOnlyGetN(i03,r1);
+		std::vector<bool> path;
+		for(size_t i=i0;i<i2;i++)
+		{
+			unsigned char tmp = tmpData[(i>>3) - i03];
+			path.push_back(loadBit(tmp,i&7));
+		}
+		int pos = 0;
+		const int pL = path.size();
+		while(pos<pL)
+		{
+			result += sequenceCompression.followBits(path,pos);
+		}
+		return result;
+	}
+
+
+	// get a gene sequence by its descriptor string
 	// thread-safe
-	std::string get(size_t id)
+	std::string getByDescriptor(std::string name)
 	{
-		// last element is just marker
-		if(id>=index.size()-1)
-			throw std::invalid_argument("Error: index out of bounds.");
 
-
-		std::vector<char> dat = data.readOnlyGetN(index[id],index[id+1] - index[id]);
-		dat.push_back('\0');
-		return std::string(dat.data());
+		return std::string();
 	}
 
-	// get number of bytes in a gene at index id
-	size_t getSize(size_t id)
-	{
-		return index[id+1] - index[id];
-	}
-
-	// number of indexed genes
 	size_t n()
 	{
-		return index.size()-1;
+		return descriptorBeginBit.size();
 	}
 
-	// returns number of opencl data channels used
-	int numGpuChannels()
-	{
-		return data.totalGpuChannels();
-	}
 private:
 
-	// list of indices of each gene
-	std::vector<size_t> index;
-
 	// byte data in video memories
-	VirtualMultiArray<char> data;
+	VirtualMultiArray<unsigned char> data;
+	HuffmanTree<unsigned char> descriptorCompression;
+	HuffmanTree<unsigned char> sequenceCompression;
+	size_t descriptorBits;
+	size_t sequenceBits;
+	std::vector<size_t> descriptorBeginBit;
+	std::vector<size_t> sequenceBeginBit;
+	std::vector<int> descriptorBitLength;
+	std::vector<int> sequenceBitLength;
 
 	// returns file size in resolution of 1024*1024*16 bytes (for the paging performance of virtual array)
 	// will require to set '\0' for excessive bytes of last block
@@ -110,38 +320,367 @@ private:
 		return size + 1024*1024*16 - ( size%(1024*1024*16) );
 	}
 
-	void readFile(std::string inFile, VirtualMultiArray<char> & va, const size_t n, const size_t pageSize)
+
+	void generateHuffmanTree(std::string inFile, size_t bytes, const bool debug=false)
 	{
 		std::ifstream bigFile(inFile);
 		constexpr size_t bufferSize = 1024*1024*16;
-		std::vector<char> buf;buf.resize(bufferSize);
-		size_t ctr = 0;
-
-		while (bigFile)
+		std::vector<unsigned char> buf;
+		buf.resize(bufferSize);
+		size_t ctr=0;
+		const int div = bytes/bufferSize;
+		int ctrDebug = 0;
+		bool encodingDescriptor = false;
+		bool encodingSequence = false;
+		int encodedLength = 0;
+		while(bigFile)
 		{
-			if (ctr + bufferSize > n)
-				throw std::invalid_argument("Error: array overflow.");
+			if(debug)
+			{
 
-			// clear unused bytes
-			if(ctr>n-bufferSize*3)
+				if(ctrDebug==1)
+				{
+					ctrDebug=0;
+					std::cout<<"Progress: "<<(ctr/bufferSize)<<"/"<<div<<std::endl;
+				}
+				ctrDebug++;
+			}
+
+			// nullify overflowed bytes
+			if(ctr>bytes - bufferSize*2)
 			{
 				for(int i=0;i<bufferSize;i++)
 					buf[i]='\0';
 			}
 
-			bigFile.read(buf.data(), bufferSize);
+			bigFile.read((char *)buf.data(), bufferSize);
 
 
-
-			#pragma omp parallel for
-			for(size_t i=0;i<bufferSize/pageSize;i++)
+			for(int i=0;i<bufferSize;i++)
 			{
-				std::vector<char> tmp(buf.begin()+i*pageSize,buf.begin()+i*pageSize + pageSize);
-				va.writeOnlySetN(ctr + i*pageSize,tmp);
+				const unsigned char elm = buf[i];
+
+				// if descriptor sign found
+				if((elm=='>')/* && (!encodingDescriptor)*/)
+				{
+
+					// enable descriptor tree building
+					encodingDescriptor = true;
+					encodingSequence = false;
+					encodedLength = 0;
+					continue;
+				}
+
+				if((elm=='\n' || elm=='\r' || elm=='\0') && encodingDescriptor && encodedLength>0)
+				{
+					encodingDescriptor = false;
+					encodingSequence = true;
+					encodedLength = 0;
+					continue;
+				}
+
+				if((elm=='\0') && encodingSequence && encodedLength>0)
+				{
+					encodingDescriptor = false;
+					encodingSequence = false;
+					encodedLength = 0;
+					continue;
+				}
+
+				if(elm=='\n' || elm=='\r')
+				{
+					continue;
+				}
+
+				if(encodingDescriptor)
+				{
+					descriptorCompression.add(elm);
+				}
+
+				if(encodingSequence)
+				{
+					sequenceCompression.add(elm);
+				}
+
+				encodedLength++;
 			}
 
 			ctr+=bufferSize;
 		}
+
+		descriptorCompression.generateTree();
+		sequenceCompression.generateTree();
+	}
+
+	size_t countBits(std::string inFile, size_t bytes, const bool debug=false)
+	{
+		sequenceBits=0;
+		descriptorBits=0;
+		std::ifstream bigFile(inFile);
+		constexpr size_t bufferSize = 1024*1024*16;
+		std::vector<unsigned char> buf;
+		buf.resize(bufferSize);
+		size_t ctr=0;
+
+		const int div = bytes/bufferSize;
+		int ctrDebug = 0;
+		bool encodingDescriptor = false;
+		bool encodingSequence = false;
+		int encodedLength = 0;
+		while(bigFile)
+		{
+			if(debug)
+			{
+
+				if(ctrDebug==1)
+				{
+					ctrDebug=0;
+					std::cout<<"Progress: "<<(ctr/bufferSize)<<"/"<<div<<std::endl;
+				}
+				ctrDebug++;
+			}
+
+			// nullify overflowed bytes
+			if(ctr>bytes - bufferSize*2)
+			{
+				for(int i=0;i<bufferSize;i++)
+					buf[i]='\0';
+			}
+
+			bigFile.read((char *)buf.data(), bufferSize);
+
+
+			for(int i=0;i<bufferSize;i++)
+			{
+				const unsigned char elm = buf[i];
+
+				// if descriptor sign found
+				if((elm=='>')/* && (!encodingDescriptor)*/)
+				{
+					// enable descriptor tree building
+					encodingDescriptor = true;
+					encodingSequence = false;
+					encodedLength = 0;
+					continue;
+				}
+
+				if((elm=='\n' || elm=='\r' || elm=='\0') && encodingDescriptor && encodedLength>0)
+				{
+					encodingDescriptor = false;
+					encodingSequence = true;
+					encodedLength = 0;
+					continue;
+				}
+
+				if((elm=='\0') && encodingSequence && encodedLength>0)
+				{
+					encodingDescriptor = false;
+					encodingSequence = false;
+					encodedLength = 0;
+					continue;
+				}
+
+				if(elm=='\n' || elm=='\r')
+				{
+					continue;
+				}
+
+				if(encodingDescriptor)
+				{
+					descriptorBits += descriptorCompression.generateBits(elm).size();
+
+				}
+
+				if(encodingSequence)
+				{
+					sequenceBits += sequenceCompression.generateBits(elm).size();
+
+				}
+
+				encodedLength++;
+
+
+			}
+
+			ctr+=bufferSize;
+		}
+		return descriptorBits + sequenceBits;
+	}
+
+	void storeBit(unsigned char & data, const bool value, const int pos) const
+	{
+		unsigned char reset = (data & ~(1<<pos));
+		unsigned char set = (data | (1<<pos));
+		data = (value?set:reset);
+	}
+
+	bool loadBit(const unsigned char & data, const int pos) const
+	{
+		return (data>>pos)&1;
+	}
+
+
+	size_t readFileIntoArray(std::string inFile, size_t bytes, const bool debug=false)
+	{
+		size_t currentBit = 0;
+		size_t writtenBytes = 0;
+		std::ifstream bigFile(inFile);
+		constexpr size_t bufferSize = 1024*1024*16;
+		std::vector<unsigned char> buf;
+		buf.resize(bufferSize);
+		size_t ctr=0;
+
+
+		const int div = bytes/bufferSize;
+		int ctrDebug = 0;
+		std::vector<unsigned char> encoded;
+		encoded.reserve(bufferSize);
+		unsigned char byteValue=0;
+		int byteBitIndex=0;
+		bool needsWrite=false;
+		size_t ct0=0;
+		bool encodingDescriptor = false;
+		bool encodingSequence = false;
+		int encodedLength = 0;
+		int encodedBitLength = 0;
+		while(bigFile)
+		{
+			if(debug)
+			{
+
+				if(ctrDebug==1)
+				{
+					ctrDebug=0;
+					std::cout<<"Progress: "<<(ctr/bufferSize)<<"/"<<div<<std::endl;
+				}
+				ctrDebug++;
+			}
+
+			// nullify overflowed bytes
+			if(ctr>bytes - bufferSize*2)
+			{
+				for(int i=0;i<bufferSize;i++)
+					buf[i]='\0';
+			}
+
+			bigFile.read((char *)buf.data(), bufferSize);
+
+
+			for(int i=0;i<bufferSize;i++)
+			{
+				const unsigned char elm = buf[i];
+				// if descriptor sign found
+				if((elm=='>')/* && (!encodingDescriptor)*/)
+				{
+					ct0++;
+					// enable descriptor tree building
+					if(encodingSequence)
+					{
+						sequenceBitLength.push_back(encodedBitLength);
+					}
+					encodedBitLength=0;
+					encodingDescriptor = true;
+					encodingSequence = false;
+					encodedLength = 0;
+
+					descriptorBeginBit.push_back(currentBit);
+					continue;
+				}
+
+				if(( (elm=='\n') || (elm=='\r') || (elm=='\0')) && encodingDescriptor && (encodedLength>0))
+				{
+					descriptorBitLength.push_back(encodedBitLength);
+					encodedBitLength=0;
+					encodingDescriptor = false;
+					encodingSequence = true;
+					encodedLength = 0;
+					sequenceBeginBit.push_back(currentBit);
+					continue;
+				}
+
+				if((elm=='\0') && encodingSequence && encodedLength>0)
+				{
+					sequenceBitLength.push_back(encodedBitLength);
+					encodedBitLength=0;
+					encodingDescriptor = false;
+					encodingSequence = false;
+					encodedLength = 0;
+					continue;
+				}
+
+				if(elm=='\n' || elm=='\r')
+				{
+					continue;
+				}
+
+				if(encodingDescriptor)
+				{
+
+					std::vector<bool> path =descriptorCompression.generateBits(elm);
+					const int pL = path.size();
+					for(int j=0;j<pL;j++)
+					{
+						storeBit(byteValue,path[j],byteBitIndex);
+						byteBitIndex++;
+						needsWrite=true;
+						if(byteBitIndex==8)
+						{
+							// write to byte buffer
+							encoded.push_back(byteValue);
+							byteValue=0;
+							byteBitIndex=0;
+							needsWrite=false;
+						}
+					}
+
+					encodedBitLength+=pL;
+					currentBit+=pL;
+				}
+
+				if(encodingSequence)
+				{
+
+					std::vector<bool> path = sequenceCompression.generateBits(elm);
+					const int pL = path.size();
+					for(int j=0;j<pL;j++)
+					{
+						storeBit(byteValue,path[j],byteBitIndex);
+						byteBitIndex++;
+						needsWrite=true;
+						if(byteBitIndex==8)
+						{
+							// write to byte buffer
+							encoded.push_back(byteValue);
+							byteValue=0;
+							byteBitIndex=0;
+							needsWrite=false;
+						}
+					}
+
+					encodedBitLength+=pL;
+					currentBit+=pL;
+				}
+
+				encodedLength++;
+
+
+			}
+
+			size_t eSize = encoded.size();
+			data.writeOnlySetN(writtenBytes,encoded);
+			writtenBytes += eSize;
+			ctr+=bufferSize;
+			encoded.clear();
+		}
+
+		// don't forget last byte
+		if(needsWrite)
+		{
+			data.set(writtenBytes,byteValue);
+			writtenBytes++;
+		}
+		std::cout<<"ct0="<<ct0<<std::endl;
+		return writtenBytes;
 	}
 };
 
