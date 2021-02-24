@@ -269,7 +269,7 @@ public:
 	FastaGeneIndexer(){}
 	FastaGeneIndexer(std::string fileName, bool debug=false){
 		fileDescriptorN=0;
-
+		sizeIO = 1024*1024*16;
 		// get file size
 		size_t bytes = countFileBytes(fileName);
 
@@ -305,11 +305,36 @@ public:
 
 		// alllocate
 		size_t totalBytes = (totalBits/8 + 1);
-		size_t pageSize = 1024*32;
-		size_t n = totalBytes + pageSize - (totalBytes%pageSize);
+
+
 		{
+			size_t bytesPerSequence = (totalBytes/fileDescriptorN);
+			size_t bytesNeededPerPage = 10*bytesPerSequence;
+			pageSize=128;
+			while(pageSize<bytesNeededPerPage)
+			{
+				pageSize *= 2;
+			}
+
+			while(pageSize > sizeIO)
+			{
+				pageSize /= 2;
+			}
+
+			int numCachePerGpu = sizeIO / pageSize;
+			if(numCachePerGpu>10)
+				numCachePerGpu=10;
+
+			size_t n = totalBytes + pageSize - (totalBytes%pageSize);
+
+			if(debug)
+			{
+				std::cout<<"page size for virtual array = "<<pageSize<<" bytes"<<std::endl;
+				std::cout<<"virtual array size = "<<n<<" bytes"<<std::endl;
+				std::cout<<"file i/o size = "<<sizeIO<<" bytes"<<std::endl;
+			}
 			GraphicsCardSupplyDepot gpu;
-			data = VirtualMultiArray<unsigned char>(n,gpu.requestGpus(),pageSize,10,{1,1,1,1,1,1,1,1,1,1,1,1},VirtualMultiArray<unsigned char>::MemMult::UseVramRatios);
+			data = VirtualMultiArray<unsigned char>(n,gpu.requestGpus(),pageSize,numCachePerGpu,{1,1,1,1,1,1,1,1,1,1,1,1},VirtualMultiArray<unsigned char>::MemMult::UseVramRatios);
 		}
 
 		if(debug)
@@ -399,20 +424,22 @@ private:
 	std::vector<int> descriptorBitLength;
 	std::vector<int> sequenceBitLength;
 	size_t fileDescriptorN;
+	size_t pageSize;
+	size_t sizeIO;
 
 	// returns file size in resolution of 1024*1024*16 bytes (for the paging performance of virtual array)
 	// will require to set '\0' for excessive bytes of last block
 	size_t countFileBytes(std::string inFile)
 	{
 		size_t size = std::filesystem::file_size(inFile);
-		return size + 1024*1024*16 - ( size%(1024*1024*16) );
+		return size + sizeIO - ( size%(sizeIO) );
 	}
 
 
 	void generateHuffmanTree(std::string inFile, size_t bytes, const bool debug=false)
 	{
 		std::ifstream bigFile(inFile);
-		constexpr size_t bufferSize = 1024*1024*16;
+		const size_t bufferSize = sizeIO;
 		std::vector<unsigned char> buf;
 		buf.resize(bufferSize);
 		size_t ctr=0;
@@ -508,7 +535,7 @@ private:
 		sequenceBits=0;
 		descriptorBits=0;
 		std::ifstream bigFile(inFile);
-		constexpr size_t bufferSize = 1024*1024*16;
+		const size_t bufferSize = sizeIO;
 		std::vector<unsigned char> buf;
 		buf.resize(bufferSize);
 		size_t ctr=0;
@@ -604,7 +631,7 @@ private:
 		size_t currentBit = 0;
 		size_t writtenBytes = 0;
 		std::ifstream bigFile(inFile);
-		constexpr size_t bufferSize = 1024*1024*16;
+		const size_t bufferSize = sizeIO;
 		std::vector<unsigned char> buf;
 		buf.resize(bufferSize);
 		size_t ctr=0;
@@ -752,7 +779,14 @@ private:
 			}
 
 			size_t eSize = encodedCtr;
-			data.writeOnlySetN(writtenBytes,encoded,0,encodedCtr);
+			const int nChunks = encodedCtr/pageSize;
+			#pragma omp parallel for
+			for(int i=0;i<nChunks;i++)
+			{
+				data.writeOnlySetN(writtenBytes+(i*pageSize),encoded,i*pageSize,pageSize);
+			}
+			//data.writeOnlySetN(writtenBytes,encoded,0,encodedCtr);
+			data.writeOnlySetN(writtenBytes+nChunks*pageSize,encoded,nChunks*pageSize,encodedCtr-nChunks*pageSize);
 			writtenBytes += eSize;
 			ctr+=bufferSize;
 			//encoded.clear();
@@ -764,6 +798,11 @@ private:
 		{
 			data.set(writtenBytes,byteValue);
 			writtenBytes++;
+		}
+
+		if(debug)
+		{
+			std::cout<<descriptorLengthCtr<<" "<<descriptorBeginCtr<<" "<<sequenceLengthCtr<<" "<<sequenceBeginCtr<<std::endl;
 		}
 
 		return writtenBytes;
