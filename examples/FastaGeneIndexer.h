@@ -26,17 +26,8 @@
 
 inline void storeBit(unsigned char & data, const bool value, const int pos) noexcept
 {
-	if(value)
-	{
-		data =  (data | (1<<pos));
-	}
-	else
-	{
-		data = (data & ~(1<<pos));
-	}
+	data = (value << pos) | (data & ~(1 << pos));
 }
-
-
 
 inline bool loadBit(const unsigned char & data, const int pos) noexcept
 {
@@ -622,7 +613,8 @@ private:
 		const int div = bytes/bufferSize;
 		int ctrDebug = 0;
 		std::vector<unsigned char> encoded;
-		encoded.reserve(bufferSize);
+		encoded.resize(bufferSize);
+		int encodedCtr=0;
 		unsigned char byteValue=0;
 		int byteBitIndex=0;
 		bool needsWrite=false;
@@ -708,8 +700,8 @@ private:
 				if(encodingDescriptor)
 				{
 
-					const std::vector<bool> path =descriptorCompression.generateBits(elm);
-					const int pL = path.size();
+					const std::vector<bool> & path =descriptorCompression.generateBits(elm);
+					const int pL = descriptorCompression.generateBitsSize(elm);
 					for(int j=0;j<pL;j++)
 					{
 						storeBit(byteValue,path[j],byteBitIndex);
@@ -718,7 +710,7 @@ private:
 						if(byteBitIndex==8)
 						{
 							// write to byte buffer
-							encoded.push_back(byteValue);
+							encoded[encodedCtr++]=byteValue;
 							byteValue=0;
 							byteBitIndex=0;
 							needsWrite=false;
@@ -732,8 +724,9 @@ private:
 				if(encodingSequence)
 				{
 
-					const std::vector<bool> path = sequenceCompression.generateBits(elm);
-					const int pL = path.size();
+					const std::vector<bool> & path = sequenceCompression.generateBits(elm);
+					const int pL = sequenceCompression.generateBitsSize(elm);
+
 					for(int j=0;j<pL;j++)
 					{
 						storeBit(byteValue,path[j],byteBitIndex);
@@ -742,7 +735,7 @@ private:
 						if(byteBitIndex==8)
 						{
 							// write to byte buffer
-							encoded.push_back(byteValue);
+							encoded[encodedCtr++]=byteValue;
 							byteValue=0;
 							byteBitIndex=0;
 							needsWrite=false;
@@ -758,11 +751,12 @@ private:
 
 			}
 
-			size_t eSize = encoded.size();
-			data.writeOnlySetN(writtenBytes,encoded);
+			size_t eSize = encodedCtr;
+			data.writeOnlySetN(writtenBytes,encoded,0,encodedCtr);
 			writtenBytes += eSize;
 			ctr+=bufferSize;
-			encoded.clear();
+			//encoded.clear();
+			encodedCtr=0;
 		}
 
 		// don't forget last byte
