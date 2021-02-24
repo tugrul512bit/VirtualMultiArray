@@ -321,9 +321,15 @@ public:
 				pageSize /= 2;
 			}
 
+			while(pageSize > (totalBytes / 12))
+			{
+				pageSize /= 2;
+			}
+
 			int numCachePerGpu = sizeIO / pageSize;
-			if(numCachePerGpu>10)
-				numCachePerGpu=10;
+			if(numCachePerGpu>15)
+				numCachePerGpu=15;
+
 
 			size_t n = totalBytes + pageSize - (totalBytes%pageSize);
 
@@ -358,6 +364,7 @@ public:
 	}
 
 	// get a gene descriptor at index=id without line-feed nor '>' characters
+	// thread-safe
 	std::string getDescriptor(size_t id)
 	{
 		std::string result;
@@ -378,6 +385,7 @@ public:
 	}
 
 	// get a gene sequence at index=id without line-feed characters
+	// thread-safe
 	std::string getSequence(size_t id)
 	{
 		std::string result;
