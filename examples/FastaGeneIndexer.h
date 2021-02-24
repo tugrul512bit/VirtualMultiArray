@@ -43,25 +43,36 @@ inline bool loadBit(const unsigned char & data, const int pos) noexcept
 	return (data>>pos)&1;
 }
 
+template<typename T>
+struct Node
+{
+	size_t count;
+	int self;
+	int leaf1;
+	int leaf2;
+	T data;
+	bool isLeaf;
+};
 
 template<typename T>
 class HuffmanTree
 {
-	struct Node
-	{
-		size_t count;
-		int self;
-		int leaf1;
-		int leaf2;
-		T data;
-		bool isLeaf;
-	};
+
 
 public:
-	HuffmanTree(){}
+	HuffmanTree(){
+		for(int i=0;i<256;i++)
+		{
+			referenceMapDirect[i]=0;
+			encodeDirectSize[i]=0;
+		}
+
+	}
 
 	void add(T data)
 	{
+		referenceMapDirect[data]++;
+		/*
 		if(referenceMap.find(data)==referenceMap.end())
 		{
 			referenceMap[data]=1;
@@ -70,34 +81,45 @@ public:
 		{
 			referenceMap[data]++;
 		}
+		*/
 	}
 
 	void generateTree(const bool debug=false)
 	{
-		std::vector<Node> sortedNodes;
+		std::vector<Node<T>> sortedNodes;
+
 
 		int ctr=0;
-		for(auto & e : referenceMap)
+		//for(auto & e : referenceMap)
+		for(int i=0;i<256;i++)
 		{
-			Node node;
-			node.data=e.first;
-			node.count=e.second;
-			node.self=ctr;
-			node.leaf1=-1;
-			node.leaf2=-1;
-			node.isLeaf=true;
-			referenceVec.push_back(node);
-			sortedNodes.push_back(node);
-			ctr++;
+			size_t ct = referenceMapDirect[i];
+			if(ct>0)
+			{
+				Node<T> node;
+
+				//node.data=e.first;
+				//node.count=e.second;
+				node.data=i;
+				node.count=ct;
+
+				node.self=ctr;
+				node.leaf1=-1;
+				node.leaf2=-1;
+				node.isLeaf=true;
+				referenceVec.push_back(node);
+				sortedNodes.push_back(node);
+				ctr++;
+			}
 		}
 
-		std::sort(sortedNodes.begin(), sortedNodes.end(),[](const Node & n1, const Node & n2){ return n1.count<n2.count;});
+		std::sort(sortedNodes.begin(), sortedNodes.end(),[](const Node<T> & n1, const Node<T> & n2){ return n1.count<n2.count;});
 
 		while(sortedNodes.size()>1)
 		{
-			Node node1 = sortedNodes[0];
-			Node node2 = sortedNodes[1];
-			Node newNode;
+			Node<T> node1 = sortedNodes[0];
+			Node<T> node2 = sortedNodes[1];
+			Node<T> newNode;
 			newNode.count = node1.count + node2.count;
 			newNode.data=0;
 			newNode.leaf1 = node1.self;
@@ -109,14 +131,14 @@ public:
 			sortedNodes.push_back(newNode);
 
 			referenceVec.push_back(newNode);
-			std::sort(sortedNodes.begin(), sortedNodes.end(),[](const Node & n1, const Node & n2){ return n1.count<n2.count;});
+			std::sort(sortedNodes.begin(), sortedNodes.end(),[](const Node<T> & n1, const Node<T> & n2){ return n1.count<n2.count;});
 			ctr++;
 		}
 
 		root = sortedNodes[0];
 
 
-		std::function<void(Node,std::vector<bool>)> g = [&](Node node, std::vector<bool> path){
+		std::function<void(Node<T>,std::vector<bool>)> g = [&](Node<T> node, std::vector<bool> path){
 			if(node.leaf1!=-1)
 			{
 				std::vector<bool> path1 = path;
@@ -133,7 +155,9 @@ public:
 
 			if((node.leaf1 == -1) && (node.leaf2 == -1))
 			{
-				encodeMap[node.data]=path;
+				//encodeMap[node.data]=path;
+				encodeDirect[node.data]=path;
+				encodeDirectSize[node.data]=path.size();
 			}
 
 		};
@@ -144,6 +168,7 @@ public:
 		if(debug)
 		{
 			std::cout<<"-------------------------------------"<<std::endl;
+			/*
 			for(const auto & e:encodeMap)
 			{
 				std::cout<<e.first<<": ";
@@ -153,19 +178,41 @@ public:
 				}
 				std::cout<<std::endl;
 			}
+			*/
+
+			for(int i=0;i<256;i++)
+			{
+				if(encodeDirect[i].size()>0)
+				{
+					std::cout<<(unsigned char)i<<": ";
+					for(const auto & f: encodeDirect[i])
+					{
+						std::cout<<f<<" ";
+					}
+					std::cout<<std::endl;
+				}
+			}
 			std::cout<<"-------------------------------------"<<std::endl;
 		}
 	}
 
-	std::vector<bool> generateBits(T data)
+	inline
+	const std::vector<bool> & generateBits(T data) const noexcept
 	{
-		return encodeMap[data];
+		//return encodeMap[data];
+		return encodeDirect[data];
+	}
+
+	inline
+	const int & generateBitsSize(T data) const noexcept
+	{
+		return encodeDirectSize[data];
 	}
 
 	T followBits(const std::vector<bool> & path, int & idx) const
 	{
 		T result;
-		const Node * curNode=&root;
+		const Node<T> * curNode=&root;
 		bool work=true;
 
 		while(work)
@@ -185,10 +232,10 @@ public:
 		return result;
 	}
 
-	T followBitsDirect(const unsigned char * path, size_t & idx, const size_t & ofs) const
+	T followBitsDirect(const Node<T> * refVec, const unsigned char * path, size_t & idx, const size_t & ofs) const
 	{
 		T result;
-		const Node * curNode=&root;
+		const Node<T> * curNode=&root;
 		bool work=true;
 
 		while(work)
@@ -201,20 +248,24 @@ public:
 			}
 			else
 			{
-				curNode = referenceVec.data()+(curNode->leaf2*p + curNode->leaf1*(1-p));
+				curNode = refVec+(curNode->leaf2*p + curNode->leaf1*(1-p));
 				idx++;
 			}
 		}
 		return result;
 	}
 
+	const Node<T> * getRefData() const { return referenceVec.data(); }
+
 	~HuffmanTree(){}
 private:
-	Node root;
-	std::vector<Node> referenceVec;
+	Node<T> root;
+	std::vector<Node<T>> referenceVec;
 	std::map<T,size_t> referenceMap;
+	size_t referenceMapDirect[256];
 	std::map<T,std::vector<bool>> encodeMap;
-
+	std::vector<bool> encodeDirect[256];
+	int encodeDirectSize[256];
 };
 
 // FASTA file indexer that caches bits of data in video-memory
@@ -226,6 +277,8 @@ class FastaGeneIndexer
 public:
 	FastaGeneIndexer(){}
 	FastaGeneIndexer(std::string fileName, bool debug=false){
+		fileDescriptorN=0;
+
 		// get file size
 		size_t bytes = countFileBytes(fileName);
 
@@ -272,6 +325,11 @@ public:
 			std::cout<<"Filling virtual array with bits of file."<<std::endl;
 
 		{
+			descriptorBeginBit.resize(fileDescriptorN);
+			descriptorBitLength.resize(fileDescriptorN);
+			sequenceBeginBit.resize(fileDescriptorN);
+			sequenceBitLength.resize(fileDescriptorN);
+
 			size_t writtenBytes = readFileIntoArray(fileName, bytes, debug);
 
 			if(debug)
@@ -295,9 +353,10 @@ public:
 		size_t pos = i0;
 		const unsigned int pL = r0+pos;
 		const unsigned char * dt = tmpData.data();
+		const Node<unsigned char> * nodePtr = descriptorCompression.getRefData();
 		while(pos<pL)
 		{
-			result += descriptorCompression.followBitsDirect(dt,pos,i03);
+			result += descriptorCompression.followBitsDirect(nodePtr,dt,pos,i03);
 		}
 		return result;
 	}
@@ -314,9 +373,10 @@ public:
 		size_t pos = i0;
 		const unsigned int pL = r0+pos;
 		const unsigned char * dt = tmpData.data();
+		const Node<unsigned char> * nodePtr = sequenceCompression.getRefData();
 		while(pos<pL)
 		{
-			result += sequenceCompression.followBitsDirect(dt,pos,i03);
+			result += sequenceCompression.followBitsDirect(nodePtr,dt,pos,i03);
 		}
 		return result;
 	}
@@ -347,6 +407,7 @@ private:
 	std::vector<size_t> sequenceBeginBit;
 	std::vector<int> descriptorBitLength;
 	std::vector<int> sequenceBitLength;
+	size_t fileDescriptorN;
 
 	// returns file size in resolution of 1024*1024*16 bytes (for the paging performance of virtual array)
 	// will require to set '\0' for excessive bytes of last block
@@ -392,13 +453,16 @@ private:
 			bigFile.read((char *)buf.data(), bufferSize);
 
 
+
 			for(int i=0;i<bufferSize;i++)
 			{
+
 				const unsigned char elm = buf[i];
 
 				// if descriptor sign found
 				if((elm=='>')/* && (!encodingDescriptor)*/)
 				{
+					fileDescriptorN++;
 
 					// enable descriptor tree building
 					encodingDescriptor = true;
@@ -523,13 +587,13 @@ private:
 
 				if(encodingDescriptor)
 				{
-					descriptorBits += descriptorCompression.generateBits(elm).size();
+					descriptorBits += descriptorCompression.generateBitsSize(elm);
 
 				}
 
 				if(encodingSequence)
 				{
-					sequenceBits += sequenceCompression.generateBits(elm).size();
+					sequenceBits += sequenceCompression.generateBitsSize(elm);
 
 				}
 
@@ -567,6 +631,10 @@ private:
 		bool encodingSequence = false;
 		int encodedLength = 0;
 		int encodedBitLength = 0;
+		size_t descriptorBeginCtr = 0;
+		size_t descriptorLengthCtr = 0;
+		size_t sequenceBeginCtr = 0;
+		size_t sequenceLengthCtr = 0;
 		while(bigFile)
 		{
 			if(debug)
@@ -600,31 +668,31 @@ private:
 					// enable descriptor tree building
 					if(encodingSequence)
 					{
-						sequenceBitLength.push_back(encodedBitLength);
+						sequenceBitLength[sequenceLengthCtr++]=encodedBitLength;
 					}
 					encodedBitLength=0;
 					encodingDescriptor = true;
 					encodingSequence = false;
 					encodedLength = 0;
 
-					descriptorBeginBit.push_back(currentBit);
+					descriptorBeginBit[descriptorBeginCtr++]=currentBit;
 					continue;
 				}
 
 				if(( (elm=='\n') || (elm=='\r') || (elm=='\0')) && encodingDescriptor && (encodedLength>0))
 				{
-					descriptorBitLength.push_back(encodedBitLength);
+					descriptorBitLength[descriptorLengthCtr++]=encodedBitLength;
 					encodedBitLength=0;
 					encodingDescriptor = false;
 					encodingSequence = true;
 					encodedLength = 0;
-					sequenceBeginBit.push_back(currentBit);
+					sequenceBeginBit[sequenceBeginCtr++]=currentBit;
 					continue;
 				}
 
 				if((elm=='\0') && encodingSequence && encodedLength>0)
 				{
-					sequenceBitLength.push_back(encodedBitLength);
+					sequenceBitLength[sequenceLengthCtr++]=encodedBitLength;
 					encodedBitLength=0;
 					encodingDescriptor = false;
 					encodingSequence = false;
@@ -640,7 +708,7 @@ private:
 				if(encodingDescriptor)
 				{
 
-					std::vector<bool> path =descriptorCompression.generateBits(elm);
+					const std::vector<bool> path =descriptorCompression.generateBits(elm);
 					const int pL = path.size();
 					for(int j=0;j<pL;j++)
 					{
@@ -664,7 +732,7 @@ private:
 				if(encodingSequence)
 				{
 
-					std::vector<bool> path = sequenceCompression.generateBits(elm);
+					const std::vector<bool> path = sequenceCompression.generateBits(elm);
 					const int pL = path.size();
 					for(int j=0;j<pL;j++)
 					{
