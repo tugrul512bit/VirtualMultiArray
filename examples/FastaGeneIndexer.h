@@ -187,6 +187,11 @@ public:
 		}
 	}
 
+	size_t getCount(T data)
+	{
+		return referenceMapDirect[data];
+	}
+
 	inline
 	const std::vector<bool> & generateBits(T data) const noexcept
 	{
@@ -276,7 +281,6 @@ public:
 		// first-pass for Huffman encoding: generate Huffman tree
 		// second-pass for Huffman encoding: count total bits for encoded file
 		// third-pass: fill virtual array with encoded bits
-
 
 
 		if(debug)
@@ -405,20 +409,39 @@ public:
 		return result;
 	}
 
+	// this is required for getSequenceByDescriptor()
+	// maps descriptor strings to index values
+	void initDescriptorIndexMapping()
+	{
+		if(descriptorToIndex.size()==0)
+		{
+			const size_t nSeq = n();
+
+			for(size_t i=0;i<nSeq;i++)
+			{
+				descriptorToIndex[getDescriptor(i)]=i;
+			}
+		}
+	}
 
 	// get a gene sequence by its descriptor string
 	// thread-safe
-	std::string getByDescriptor(std::string name)
+	std::string getSequenceByDescriptor(std::string name)
 	{
-
-		return std::string();
+		return getSequence(descriptorToIndex[name]);
 	}
 
+	// number of sequences
 	size_t n()
 	{
 		return descriptorBeginBit.size();
 	}
 
+	// returns total number of occurences of a symbol 'A', 'C', 'G', ...
+	size_t getSymbolCount(unsigned char symbol)
+	{
+		return sequenceCompression.getCount(symbol);
+	}
 private:
 
 	// byte data in video memories
@@ -434,6 +457,7 @@ private:
 	size_t fileDescriptorN;
 	size_t pageSize;
 	size_t sizeIO;
+	std::map<std::string,size_t> descriptorToIndex;
 
 	// returns file size in resolution of 1024*1024*16 bytes (for the paging performance of virtual array)
 	// will require to set '\0' for excessive bytes of last block
