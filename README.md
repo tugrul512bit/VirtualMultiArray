@@ -3,6 +3,16 @@ Multi graphics card based C++ virtual array implementation that uses OpenCL just
 
 Wiki: https://github.com/tugrul512bit/VirtualMultiArray/wiki/How-it-works
 
+This tool enables:
+
+- development of low-latency compressed dna caching: https://github.com/tugrul512bit/FastaGeneIndexer
+
+- offloading some data to video ram to save disk from over-use
+
+- preserving responsiveness of system when more space than the available RAM is needed
+- - with better latency than HDD/SSD
+- - with higher throughput than NVME
+
 Simplest usage:
 ```cpp
 #include "GraphicsCardSupplyDepot.h"
