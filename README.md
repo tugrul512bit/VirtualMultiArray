@@ -1,5 +1,5 @@
 # VirtualMultiArray
-Multi graphics card based C++ virtual array implementation that uses OpenCL just for the data transfers on pcie bridge.
+Multi graphics card based C++ virtual array implementation that uses VRAM with OpenCL to save gigabytes of RAM.
 
 Wiki: https://github.com/tugrul512bit/VirtualMultiArray/wiki/How-it-works
 
