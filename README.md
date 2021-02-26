@@ -5,13 +5,12 @@ Wiki: https://github.com/tugrul512bit/VirtualMultiArray/wiki/How-it-works
 
 This tool enables:
 
-- development of low-latency compressed dna caching: https://github.com/tugrul512bit/FastaGeneIndexer
-
-- offloading some data to video ram to save disk from over-use
-
+- offloading some data to video ram to save disk from over-use 
+- - such as for caching big files like FASTA nucleotide sequences : https://github.com/tugrul512bit/FastaGeneIndexer
 - preserving responsiveness of system when more space than the available RAM is needed
 - - with better latency than HDD/SSD
-- - with higher throughput than NVME
+- - with higher throughput than NVME (requires multiple graphics cards)
+- finding an element in array by using GPU compute power
 
 Simplest usage:
 ```cpp
