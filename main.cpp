@@ -39,15 +39,15 @@ int main(int argC, char** argV)
 	GraphicsCardSupplyDepot depot;
 
 	// n needs to be integer multiple of pageSize !!!!
-	const size_t n = 1024 * 10000;
+	const size_t n = 1024 * 30000;
 	const size_t pageSize = 1024;
-	const int maxActivePagesPerGpu = 5;
+	const int maxActivePagesPerGpu = 16;
 
 	VirtualMultiArray<Particle> test;
 	
 	{
 		CpuBenchmarker bench(0, "init");
-		test = VirtualMultiArray<Particle>(n, depot.requestGpus(), pageSize, maxActivePagesPerGpu);
+		test = VirtualMultiArray<Particle>(n, depot.requestGpus(), pageSize, maxActivePagesPerGpu, {15,15,15,15,15,15,15,15,15,15,15});
 	}
 
 	for(int j=0;j<5;j++)
@@ -61,7 +61,7 @@ int main(int argC, char** argV)
 
 	for (int j = 0; j < 5; j++)
 	{
-		CpuBenchmarker bench(1000 * sizeof(Particle), "single threaded get, uncached", 1000);
+		CpuBenchmarker bench(1000 * sizeof(Particle), "single threaded ---get---, uncached", 1000);
 		for (int i = 0; i < 1000; i++)
 		{
 			auto var = test.get(i * (pageSize + 1));
@@ -81,7 +81,7 @@ int main(int argC, char** argV)
 
 	for (int j = 0; j < 5; j++)
 	{
-		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded get, cached", 1000);
+		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded ---get---, cached", 1000);
 		for (int i = 0; i < 1000; i++)
 		{
 			auto var = test.get(i);
@@ -95,7 +95,7 @@ int main(int argC, char** argV)
 
 	{
 		CpuBenchmarker bench(n*sizeof(Particle), "multithreaded sequential set",n);
-		#pragma omp parallel for
+		#pragma omp parallel for schedule(guided)
 		for (int i = 0; i < n; i++)
 		{
 			test.set(i, Particle(i));
@@ -104,7 +104,7 @@ int main(int argC, char** argV)
 
 	{
 		CpuBenchmarker bench(n * sizeof(Particle), "multithreaded sequential get", n);
-		#pragma omp parallel for
+		#pragma omp parallel for schedule(guided)
 		for (int i = 0; i < n; i++)
 		{
 			if (test.get(i).getId() != i)
