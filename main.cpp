@@ -52,8 +52,8 @@ int main(int argC, char** argV)
 
 	for(int j=0;j<5;j++)
 	{
-		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded set, uncached", 1000);
-		for (int i = 0; i < 1000; i++)
+		CpuBenchmarker bench(10000*sizeof(Particle), "single threaded set, uncached", 10000);
+		for (int i = 0; i < 10000; i++)
 		{
 			test.set(i * (pageSize + 1), Particle(i * (pageSize + 1)));
 		}
@@ -61,8 +61,8 @@ int main(int argC, char** argV)
 
 	for (int j = 0; j < 5; j++)
 	{
-		CpuBenchmarker bench(1000 * sizeof(Particle), "single threaded ---get---, uncached", 1000);
-		for (int i = 0; i < 1000; i++)
+		CpuBenchmarker bench(10000 * sizeof(Particle), "single threaded ---get---, uncached", 10000);
+		for (int i = 0; i < 10000; i++)
 		{
 			auto var = test.get(i * (pageSize + 1));
 			if (var.getId() != i * (pageSize + 1))
@@ -74,15 +74,15 @@ int main(int argC, char** argV)
 
 	for (int j = 0; j < 5; j++)
 	{
-		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded set, cached", 1000);
-		for (int i = 0; i < 1000; i++)
+		CpuBenchmarker bench(10000*sizeof(Particle), "single threaded set, cached", 10000);
+		for (int i = 0; i < 10000; i++)
 			test.set(i, Particle(i));
 	}
 
 	for (int j = 0; j < 5; j++)
 	{
-		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded ---get---, cached", 1000);
-		for (int i = 0; i < 1000; i++)
+		CpuBenchmarker bench(10000*sizeof(Particle), "single threaded ---get---, cached", 10000);
+		for (int i = 0; i < 10000; i++)
 		{
 			auto var = test.get(i);
 			if (var.getId() != i)
