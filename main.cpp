@@ -14,17 +14,9 @@
 #define _AMD64_
 #endif
 
-
-#include <iostream>
-#include <vector>
-#include <memory>
-
-#include <mutex>
-#include <functional>
-
-
 #include "GraphicsCardSupplyDepot.h"
 #include "VirtualMultiArray.h"
+#include "CpuBenchmarker.h"
 
 class Particle
 {
@@ -41,8 +33,6 @@ private:
 };
 
 
-// testing
-#include <chrono>
 
 int main(int argC, char** argV)
 {
@@ -51,74 +41,77 @@ int main(int argC, char** argV)
 	// n needs to be integer multiple of pageSize !!!!
 	const size_t n = 1024 * 10000;
 	const size_t pageSize = 1024;
-	const int maxActivePagesPerGpu = 100;
+	const int maxActivePagesPerGpu = 5;
 
-	VirtualMultiArray<Particle> test(n, depot.requestGpus(), pageSize, maxActivePagesPerGpu);
-	//VirtualMultiArray<int> test2(n,depot.requestGpus(),pageSize,maxActivePagesPerGpu);
-
-	std::chrono::milliseconds t1 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-#pragma omp parallel for
-	for (int i = 0; i < n; i++)
+	VirtualMultiArray<Particle> test;
+	
 	{
-		// seamless access to i index
-		// create a particle with id=i and write to array
-		//test2.set(i,int(i));
-		test.set(i, Particle(i));
+		CpuBenchmarker bench(0, "init");
+		test = VirtualMultiArray<Particle>(n, depot.requestGpus(), pageSize, maxActivePagesPerGpu);
 	}
 
-#pragma omp parallel for
-	for (int i = 0; i < n; i++)
+	for(int j=0;j<5;j++)
 	{
-		// seamless access to i index
-		// get particle id and compare to expected value
-		//if(test2.get(i)!=i)
-		//{
-		//	std::cout<<"!!! error at "<<i<<std::endl;
-		//}
-
-		if (test.get(i).getId() != i)
+		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded set, uncached", 1000);
+		for (int i = 0; i < 1000; i++)
 		{
-			std::cout << "!!! error at " << i << std::endl;
+			test.set(i * (pageSize + 1), Particle(i * (pageSize + 1)));
 		}
 	}
-	std::chrono::milliseconds t2 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 
-
-
-	auto miliseconds = (t2.count() - t1.count());
-	float throughput = (n * sizeof(Particle) * 2/* 1:set + 1:get */ / (miliseconds / 1000.0)) / (1000000.0);
-	std::cout << "Bandwidth achieved by using virtual array backed by all graphics cards: " << throughput << "MB/s" << std::endl;
-	if ((throughput > 178.1f) && (n == 1024 * 10000) && (pageSize == 1024) && (maxActivePagesPerGpu == 100))
+	for (int j = 0; j < 5; j++)
 	{
-		std::cout << "Congrats. Your system is better than this system: GT1030 + K420 + K420 (1 channel 1333MHz ddr3 4GB RAM, FX8150 @ 2.1GHz)" << std::endl;
-		std::cout << "Your system is " << (((throughput / 178.1f) - 1.0f) * 100.0f) << "%  faster." << std::endl;
-		std::cout << "Some other benchmark results from same system:" << std::endl;
+		CpuBenchmarker bench(1000 * sizeof(Particle), "single threaded get, uncached", 1000);
+		for (int i = 0; i < 1000; i++)
+		{
+			auto var = test.get(i * (pageSize + 1));
+			if (var.getId() != i * (pageSize + 1))
+			{
+				std::cout << "Error!" << std::endl;
+			}
+		}
+	}
 
-		std::cout << "testing method                      object size   throughput    page size    cpu threads       total objects     active pages per gpu   RAM   VRAM" << std::endl;
-		std::cout << "uniform distribution random access  44 bytes      3.1   MB/s    128 objects  8                 100k              4" << std::endl;
-		std::cout << "uniform distribution random access  4kB           238.3 MB/s    1   object   8                 100k              4" << std::endl;
-		std::cout << "serial access per thread            4kB           496.4 MB/s    1   object   8                 100k              4" << std::endl;
-		std::cout << "serial access per thread            4kB           2467.0MB/s    32  objects  8                 100k              4" << std::endl;
-		std::cout << "serial access per thread            44 bytes      142.9 MB/s    32  objects  8                 100k              4" << std::endl;
-		std::cout << "serial access per thread            44 bytes      162.3 MB/s    32  objects  8                 1M                4" << std::endl;
-		std::cout << "serial access per thread            44 bytes      287.0 MB/s    1k  objects  8                 1M                4" << std::endl;
-		std::cout << "serial access per thread            44 bytes      140.8 MB/s    10k objects  8                 10M               4" << std::endl;
-		std::cout << "serial access per thread            44 bytes      427.1 MB/s    10k objects  8                 10M               100" << std::endl;
-		std::cout << "serial access per thread            44 bytes      299.9 MB/s    10k objects  8                 100M              100                    900MB 4.5GB" << std::endl;
-		std::cout << "serial access per thread            44 bytes      280.5 MB/s    10k objects  8                 100M              50                     600MB 4.5GB" << std::endl;
-		std::cout << "serial access per thread            44 bytes      249.1 MB/s    10k objects  8                 100M              25                     400MB 4.5GB" << std::endl;
-		std::cout << "serial access per thread            44 bytes      70.8  MB/s    100kobjects  8                 100M              8                      700MB 4.5GB" << std::endl;
-		std::cout << "serial access per thread            44 bytes      251.1  MB/s   1k  objects  8                 100M              1000                   1GB   4.5GB" << std::endl;
-		std::cout << "interleaved threading per object    44 bytes      236.1  MB/s   1k  objects  8                 100M              1000                   1GB   4.5GB" << std::endl;
-		std::cout << "interleaved threading per object    44 bytes      139.5  MB/s   32  objects  8                 100M              1000                   700MB 4.5GB" << std::endl;
-		std::cout << "interleaved threading per object    44 bytes      153.6  MB/s   32  objects  8                 100M              100                    500MB 4.5GB" << std::endl;
-		std::cout << "interleaved threading per object    4kB           2474.0 MB/s   32  objects  8                 1M                5                      400MB 4.2GB" << std::endl;
+	for (int j = 0; j < 5; j++)
+	{
+		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded set, cached", 1000);
+		for (int i = 0; i < 1000; i++)
+			test.set(i, Particle(i));
+	}
+
+	for (int j = 0; j < 5; j++)
+	{
+		CpuBenchmarker bench(1000*sizeof(Particle), "single threaded get, cached", 1000);
+		for (int i = 0; i < 1000; i++)
+		{
+			auto var = test.get(i);
+			if (var.getId() != i)
+			{
+				std::cout << "Error!" << std::endl;
+			}
+		}
 	}
 
 
+	{
+		CpuBenchmarker bench(n*sizeof(Particle), "multithreaded sequential set",n);
+		#pragma omp parallel for
+		for (int i = 0; i < n; i++)
+		{
+			test.set(i, Particle(i));
+		}
+	}
 
-
-
-
+	{
+		CpuBenchmarker bench(n * sizeof(Particle), "multithreaded sequential get", n);
+		#pragma omp parallel for
+		for (int i = 0; i < n; i++)
+		{
+			if (test.get(i).getId() != i)
+			{
+				std::cout << "!!! error at " << i << std::endl;
+			}
+		}
+	}
 	return 0;
 }
