@@ -363,6 +363,7 @@ private:
 	inline
 	void updatePage(Page<T> * const sel, const size_t & selectedPage) const
 	{
+		cl_event evt;
 		if (sel->isEdited())
 		{
 			// upload edited
@@ -374,7 +375,7 @@ private:
 			
 			// download new
 			sel->setTargetGpuPage(selectedPage);
-			err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
+			err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt/*nullptr*/);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: read buffer");
@@ -386,14 +387,30 @@ private:
 		{
 			// download new
 			sel->setTargetGpuPage(selectedPage);
-			cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
+			cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt /*nullptr*/);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: write buffer");
 			}				
 		}
-		
-		clFinish(q->getQueue());
+
+		clFlush(q->getQueue());
+		const cl_event_info evtInf = CL_EVENT_COMMAND_EXECUTION_STATUS;
+		cl_int evtStatus0 = 0;
+		if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+		{
+			throw std::invalid_argument("error: event info");
+		}
+
+		while (evtStatus0 != CL_COMPLETE)
+		{
+			if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+			{
+				throw std::invalid_argument("error: event info");
+			}
+			std::this_thread::yield();
+		}
+		//clFinish(q->getQueue());
 	}
 };
 
