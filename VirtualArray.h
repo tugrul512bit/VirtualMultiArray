@@ -410,6 +410,10 @@ private:
 			}
 			std::this_thread::yield();
 		}
+		if(CL_SUCCESS != clReleaseEvent(evt))
+		{
+			throw std::invalid_argument("error: release event");
+		}
 		//clFinish(q->getQueue());
 	}
 };
