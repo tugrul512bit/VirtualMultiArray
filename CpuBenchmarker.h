@@ -32,7 +32,7 @@ public:
 
 	}
 
-	CpuBenchmarker(size_t bytesToBench, std::string infoExtra, size_t countForThroughput):t1(std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::system_clock::now().time_since_epoch()))
+	CpuBenchmarker(size_t bytesToBench, std::string infoExtra, size_t countForThroughput):t1(std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::high_resolution_clock::now().time_since_epoch()))
 	{
 		bytes=bytesToBench;
 		info=infoExtra;
@@ -41,7 +41,7 @@ public:
 
 	~CpuBenchmarker()
 	{
-		std::chrono::nanoseconds t2 =  std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::system_clock::now().time_since_epoch());
+		std::chrono::nanoseconds t2 =  std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::high_resolution_clock::now().time_since_epoch());
 		size_t t = t2.count() - t1.count();
 		if(info!=std::string(""))
 			std::cout<<info<<": ";

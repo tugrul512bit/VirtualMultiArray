@@ -76,6 +76,9 @@ public:
 	// internal logic, for get/set methods of VirtualArray
 	T * ptr(){ return arr->getArray(); }
 
+	Page<T>& operator=(Page<T>&&) = default;
+	Page<T>& operator=(Page<T>&) = default;
+	Page(Page<T>&) = default;
 	~Page(){}
 private:
 	std::shared_ptr<AlignedCpuArray<T>> arr;

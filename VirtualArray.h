@@ -18,6 +18,7 @@
 #include"ClArray.h"
 #include"ClCompute.h"
 #include"Page.h"
+#include"PageCache.h"
 #include<CL/cl.h>
 
 // this is a non-threadsafe single-graphics-card using virtual array
@@ -26,7 +27,7 @@ class VirtualArray
 {
 public:
 	// don't use this
-	VirtualArray():sz(0),szp(0),nump(0),computeFind(nullptr){}
+	VirtualArray():sz(0),szp(0),nump(0),computeFind(nullptr),pageCache(nullptr){}
 
 	// for generating a physical-card based virtual array
 	// takes a single virtual graphics card, size(in number of objects), page size(in number of objects), active pages (number of pages in interleaved order for caching)
@@ -47,6 +48,9 @@ public:
 		{
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
+
+		pageCache = std::make_shared<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,ctx,cpu);
+
 	}
 
 	// for generating a virtual-card based virtual array
@@ -68,19 +72,16 @@ public:
 		{
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
+		pageCache = std::make_shared<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,ctx,cpu);
 	}
+
+
 
 	// array access for reading an element at an index
 	T get(const size_t & index)
 	{
 		const size_t selectedPage = index/szp;
-		const int selectedActivePage = selectedPage % nump;
-		Page<T> * sel = cpu.get()+selectedActivePage;
-		if(sel->getTargetGpuPage()!=selectedPage)
-		{
-			updatePage(sel, selectedPage);
-			sel->reset();			
-		}
+		Page<T> * sel = pageCache->access(selectedPage);
 		return sel->get(index - selectedPage * szp);
 	}
 
@@ -89,15 +90,9 @@ public:
 	void set(const size_t & index, const T & val)
 	{
 		const size_t selectedPage = index/szp;
-		const int selectedActivePage = selectedPage % nump;
-		Page<T> * sel = cpu.get()+selectedActivePage;
-		if(sel->getTargetGpuPage()!=selectedPage)
-		{
-			updatePage(sel, selectedPage);
-		}
+		Page<T> * sel = pageCache->access(selectedPage);
 		sel->edit(index - selectedPage * szp, val);
 		sel->markAsEdited();
-
 	}
 
 
@@ -108,13 +103,7 @@ public:
 	{
 		std::vector<T> result;
 		const size_t selectedPage = index/szp;
-		const int selectedActivePage = selectedPage % nump;
-		Page<T> * sel = cpu.get()+selectedActivePage;
-		if(sel->getTargetGpuPage()!=selectedPage)
-		{
-			updatePage(sel, selectedPage);
-			sel->reset();			
-		}
+		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
 		return sel->getN(index - selectedPage * szp, n);
 	}
 
@@ -124,12 +113,7 @@ public:
 	void setN(const size_t & index, const std::vector<T> & val, const size_t & valIndex, const size_t n)
 	{
 		const size_t selectedPage = index/szp;
-		const int selectedActivePage = selectedPage % nump;
-		Page<T> * sel = cpu.get()+selectedActivePage;
-		if(sel->getTargetGpuPage()!=selectedPage)
-		{
-			updatePage(sel, selectedPage);
-		}
+		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
 		sel->editN(index - selectedPage * szp, val, valIndex, n);
 		sel->markAsEdited();
 	}
@@ -145,13 +129,7 @@ public:
 	void copyToBuffer(const size_t & index, const size_t & range, T * const out)
 	{
 		const size_t selectedPage = index/szp;
-		const int selectedActivePage = selectedPage % nump;
-		Page<T> * sel = cpu.get()+selectedActivePage;
-		if(sel->getTargetGpuPage()!=selectedPage)
-		{
-			updatePage(sel, selectedPage);
-			sel->reset();		
-		}
+		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
 		sel->readN(out, index - selectedPage * szp, range);
 	}
 
@@ -163,12 +141,7 @@ public:
 	void copyFromBuffer(const size_t & index, const size_t & range, T * const in)
 	{
 		const size_t selectedPage = index/szp;
-		const int selectedActivePage = selectedPage % nump;
-		Page<T> * sel = cpu.get()+selectedActivePage;
-		if(sel->getTargetGpuPage()!=selectedPage)
-		{
-			updatePage(sel, selectedPage);		
-		}
+		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
 		sel->writeN(in, index - selectedPage * szp, range);
 		sel->markAsEdited();
 	}
@@ -359,63 +332,9 @@ private:
 	// opencl-pinned buffer in RAM
 	std::shared_ptr<Page<T>> cpu;
 
+	std::shared_ptr<Cache<T>> pageCache;
 
-	inline
-	void updatePage(Page<T> * const sel, const size_t & selectedPage) const
-	{
-		cl_event evt;
-		if (sel->isEdited())
-		{
-			// upload edited
-			cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (sel->getTargetGpuPage()) * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
-			if (CL_SUCCESS != err)
-			{
-				throw std::invalid_argument("error: write buffer");
-			}
-			
-			// download new
-			sel->setTargetGpuPage(selectedPage);
-			err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt/*nullptr*/);
-			if (CL_SUCCESS != err)
-			{
-				throw std::invalid_argument("error: read buffer");
-			}
-			
-			
-		}
-		else
-		{
-			// download new
-			sel->setTargetGpuPage(selectedPage);
-			cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt /*nullptr*/);
-			if (CL_SUCCESS != err)
-			{
-				throw std::invalid_argument("error: write buffer");
-			}				
-		}
 
-		clFlush(q->getQueue());
-		const cl_event_info evtInf = CL_EVENT_COMMAND_EXECUTION_STATUS;
-		cl_int evtStatus0 = 0;
-		if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
-		{
-			throw std::invalid_argument("error: event info");
-		}
-
-		while (evtStatus0 != CL_COMPLETE)
-		{
-			if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
-			{
-				throw std::invalid_argument("error: event info");
-			}
-			std::this_thread::yield();
-		}
-		if(CL_SUCCESS != clReleaseEvent(evt))
-		{
-			throw std::invalid_argument("error: release event");
-		}
-		//clFinish(q->getQueue());
-	}
 };
 
 
