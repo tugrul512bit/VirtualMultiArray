@@ -103,7 +103,7 @@ public:
 	{
 		std::vector<T> result;
 		const size_t selectedPage = index/szp;
-		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
+		Page<T> * sel = pageCache->access(selectedPage);
 		return sel->getN(index - selectedPage * szp, n);
 	}
 
@@ -113,7 +113,7 @@ public:
 	void setN(const size_t & index, const std::vector<T> & val, const size_t & valIndex, const size_t n)
 	{
 		const size_t selectedPage = index/szp;
-		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
+		Page<T> * sel = pageCache->access(selectedPage);
 		sel->editN(index - selectedPage * szp, val, valIndex, n);
 		sel->markAsEdited();
 	}
@@ -129,7 +129,7 @@ public:
 	void copyToBuffer(const size_t & index, const size_t & range, T * const out)
 	{
 		const size_t selectedPage = index/szp;
-		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
+		Page<T> * sel = pageCache->access(selectedPage);
 		sel->readN(out, index - selectedPage * szp, range);
 	}
 
@@ -141,7 +141,7 @@ public:
 	void copyFromBuffer(const size_t & index, const size_t & range, T * const in)
 	{
 		const size_t selectedPage = index/szp;
-		Page<T> * sel = pageCache->accessWithoutReset(selectedPage);
+		Page<T> * sel = pageCache->access(selectedPage);
 		sel->writeN(in, index - selectedPage * szp, range);
 		sel->markAsEdited();
 	}
