@@ -151,7 +151,10 @@ public:
 
 		if(nDevice>size/pageSizeP)
 		{
-			throw std::invalid_argument(std::string("Error :number of pages(")+std::to_string(size/pageSizeP)+std::string(") must be equal to or greater than number of virtual gpu instances(")+std::to_string(nDevice)+std::string(")."));
+			auto info = std::string("Error :number of pages(")+std::to_string(size/pageSizeP)+std::string(") must be equal to or greater than number of virtual gpu instances(")+std::to_string(nDevice)+std::string(").");
+			auto debug3 = std::string("Total devices: ")+std::to_string(nDevice)+std::string("\r\n");
+			auto debug4 = std::string("Total pages: ")+std::to_string(size/pageSizeP)+std::string("\r\n");
+			throw std::invalid_argument(debug3+debug4+info);
 		}
 
 
@@ -172,6 +175,23 @@ public:
 
 		openclChannels = gpuCloneMult;
 
+		{
+			int total = 0;
+			for(const auto& e:openclChannels)
+			{
+				total+=e;
+			}
+			if(total * numActivePage > size/pageSizeP)
+			{
+				auto info = std::string("Error: total number of active pages (")+std::to_string(total * numActivePage)+std::string(")")+
+						std::string(" required to be less than or equal to total pages(")+std::to_string(size/pageSizeP)+std::string(")");
+				auto debug1 = std::string("Active page per virtual gpu: ")+std::to_string(numActivePage)+std::string("\r\n");
+				auto debug2 = std::string("Virtual gpus: ")+std::to_string(total)+std::string("\r\n");
+				auto debug3 = std::string("Total active pages: ")+std::to_string(total * numActivePage )+std::string("\r\n");
+				auto debug4 = std::string("Total pages: ")+std::to_string(size/pageSizeP)+std::string("\r\n");
+				throw std::invalid_argument(debug1+debug2+debug3+debug4+info);
+			}
+		}
 		int ctr = 0;
 		std::vector<int> actuallyUsedPhysicalGpuIndex;
 		actuallyUsedPhysicalGpuIndex.resize(numPhysicalCard);
