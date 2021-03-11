@@ -148,11 +148,6 @@ public:
 			Page<T> * old = *(it->second);
 			scalableCounts.erase(it->second);
 
-			if(old->getTargetGpuPage()!=index)
-			{
-				updatePage(old, index);
-				old->reset();
-			}
 
 			// add a new
 			scalableCounts.push_front(old);
