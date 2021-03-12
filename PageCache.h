@@ -199,10 +199,48 @@ private:
 	int szp;
 	Page<T> * directCache;
 
-
 	inline
 	void updatePage(Page<T> * const sel, const size_t & selectedPage) const
 	{
+
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+// clGetEventInfo lags too much in windows for gt1030
+// no explicit idle-wait used
+
+		if (sel->isEdited())
+		{
+			// upload edited
+			cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (sel->getTargetGpuPage()) * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
+			if (CL_SUCCESS != err)
+			{
+				throw std::invalid_argument("error: write buffer");
+			}
+
+			// download new
+			sel->setTargetGpuPage(selectedPage);
+			err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_TRUE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
+			if (CL_SUCCESS != err)
+			{
+				throw std::invalid_argument("error: read buffer");
+			}
+
+
+		}
+		else
+		{
+			// download new
+			sel->setTargetGpuPage(selectedPage);
+			cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_TRUE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
+			if (CL_SUCCESS != err)
+			{
+				throw std::invalid_argument("error: read buffer");
+			}
+		}
+
+#else
+// linux
+// explicit idle-wait to overlap i/o with other threads by yield()
 		cl_event evt;
 		if (sel->isEdited())
 		{
@@ -255,8 +293,13 @@ private:
 		{
 			std::cout<<"error: release event"<<std::endl;
 		}
-		//clFinish(q->getQueue());
+
+#endif
+
+
 	}
+
+
 
 };
 
