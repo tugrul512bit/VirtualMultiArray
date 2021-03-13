@@ -193,6 +193,7 @@ public:
 			}
 		}
 		int ctr = 0;
+
 		std::vector<int> actuallyUsedPhysicalGpuIndex;
 		actuallyUsedPhysicalGpuIndex.resize(numPhysicalCard);
 		int ctrPhysicalCard =0;

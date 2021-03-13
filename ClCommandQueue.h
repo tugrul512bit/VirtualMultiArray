@@ -42,7 +42,7 @@ public:
 	}
 
 
-	cl_command_queue getQueue(){ return *q;}
+	cl_command_queue getQueue() const noexcept { return *q;}
 
 	~ClCommandQueue(){}
 private:

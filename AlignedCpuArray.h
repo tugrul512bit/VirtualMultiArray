@@ -64,7 +64,7 @@ public:
 	}
 
 	// returning constant pointer to type T for get/set access (currently only this scalar access is supported. For vectorization, T type needs to contain multiple data)
-	T * const getArray() { return arr; }
+	T * const getArray() const noexcept { return arr; }
 
 	~AlignedCpuArray()
 	{
