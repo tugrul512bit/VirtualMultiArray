@@ -33,6 +33,15 @@
 #include"ClDevice.h"
 #include"VirtualArray.h"
 
+constexpr int ASSUMED_L1_DATA_CACHE_LINE_SIZE = 64;
+constexpr int computedMutexPaddingSize=ASSUMED_L1_DATA_CACHE_LINE_SIZE-sizeof(std::mutex);
+constexpr int finalMutexPaddingSize=((computedMutexPaddingSize<0)?1:computedMutexPaddingSize);
+struct LMutex
+{
+	std::mutex m;
+	char padding[finalMutexPaddingSize];
+};
+
 template<typename T>
 class VirtualMultiArray
 {
@@ -165,7 +174,7 @@ public:
 
 			delete [] ptr;
 		});
-		pageLock = std::shared_ptr<std::mutex>(new std::mutex[numDevice],[](std::mutex * ptr){delete [] ptr;});
+		pageLock = std::shared_ptr<LMutex>(new LMutex[numDevice],[](LMutex * ptr){delete [] ptr;});
 
 
 		size_t numPage = size/pageSize;
@@ -249,7 +258,7 @@ public:
 		const size_t selectedVirtualArray = selectedPage%numDevice;
 		const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
 
-		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 		return va.get()[selectedVirtualArray].get(selectedElement);
 	}
 
@@ -261,7 +270,7 @@ public:
 		const size_t selectedVirtualArray = selectedPage%numDevice;
 		const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
 
-		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 		va.get()[selectedVirtualArray].set(selectedElement,val);
 	}
 
@@ -282,7 +291,7 @@ public:
 		if(modIdx + n - 1 < pageSize)
 		{
 			// full read possible
-			std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+			std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 			return va.get()[selectedVirtualArray].getN(selectedElement,n);
 		}
 		else
@@ -293,7 +302,7 @@ public:
 
 			// read this page
 			{
-				std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+				std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 				std::vector<T> part = va.get()[selectedVirtualArray].getN(selectedElement,toBeCopied);
 				std::move(part.begin(),part.end(),std::back_inserter(result));
 				nToRead -= toBeCopied;
@@ -331,7 +340,7 @@ public:
 		if(modIdx + n - 1 < pageSize)
 		{
 			// full write possible
-			std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+			std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 			va.get()[selectedVirtualArray].setN(selectedElement,val,valIndex,n);
 		}
 		else
@@ -342,7 +351,7 @@ public:
 
 			// write this page
 			{
-				std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+				std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 				va.get()[selectedVirtualArray].setN(selectedElement,val,valIndex, toBeCopied);
 				nToWrite -= toBeCopied;
 			}
@@ -452,7 +461,7 @@ public:
 				const size_t selectedElement = numInterleave*pageSize + (currentIndex%pageSize);
 				if(currentRange>0)
 				{
-					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 					va.get()[selectedVirtualArray].copyToBuffer(selectedElement, currentRange, mem.buf+currentBufElm);
 				}
 				else
@@ -489,7 +498,7 @@ public:
 				const size_t selectedElement = numInterleave*pageSize + (currentIndex%pageSize);
 				if(currentRange>0)
 				{
-					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray]);
+					std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 					va.get()[selectedVirtualArray].copyFromBuffer(selectedElement, currentRange, mem.buf+currentBufElm);
 				}
 				else
@@ -542,7 +551,7 @@ public:
 		{
 			parallel.push_back(std::thread([&,i]()
 			{
-				std::unique_lock<std::mutex> lock(pageLock.get()[i]);
+				std::unique_lock<std::mutex> lock(pageLock.get()[i].m);
 				size_t nump = va.get()[i].getNumP();
 				for(size_t pg = 0;pg<nump;pg++)
 				{
@@ -606,7 +615,7 @@ private:
 	size_t numDevice;
 	size_t pageSize;
 	std::shared_ptr<VirtualArray<T>> va;
-	std::shared_ptr<std::mutex> pageLock;
+	std::shared_ptr<LMutex> pageLock;
 	std::vector<int> openclChannels;
 };
 
