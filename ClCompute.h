@@ -22,7 +22,7 @@ class ClComputeParameter
 public:
 	ClComputeParameter(){mem=nullptr; built=false; name="", argIndex=-1, sizeBytes=0;}
 
-	ClComputeParameter(ClContext ctx,std::string nameP, size_t sizeBytesP, int argIndexP, cl_mem * outerGpuBuf=nullptr)
+	ClComputeParameter(ClContext ctx,std::string nameP, size_t sizeBytesP, int argIndexP, cl_mem outerGpuBuf=nullptr)
 	{
 		name = nameP;
 		sizeBytes=sizeBytesP;
@@ -44,7 +44,7 @@ public:
 		}
 		else
 		{
-			*mem = *outerGpuBuf;
+			*mem = outerGpuBuf;
 			built=false;
 		}
 	}
@@ -117,7 +117,7 @@ public:
 		}
 	}
 
-	void addParameter(ClContext ctx, std::string name, int lengthByte, int parameterIndex, cl_mem * outerGpuBuf=nullptr)
+	void addParameter(ClContext ctx, std::string name, int lengthByte, int parameterIndex, cl_mem outerGpuBuf=nullptr)
 	{
 		parameters[name]=std::unique_ptr<ClComputeParameter>(new ClComputeParameter(ctx, name,lengthByte,parameterIndex,outerGpuBuf));
 	}
@@ -233,6 +233,5 @@ private:
 	cl_kernel kernel;
 	std::map<std::string,std::unique_ptr<ClComputeParameter>> parameters;
 };
-
 
 #endif /* CLCOMPUTE_H_ */

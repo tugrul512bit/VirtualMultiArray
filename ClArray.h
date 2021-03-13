@@ -23,34 +23,32 @@ class ClArray
 {
 public:
 	// do not use this
-	ClArray(){ mem=nullptr; n=nullptr; }
+	ClArray():mem(nullptr),n(0),err(0){ mem=nullptr; n=0; err=0;}
 
 	// size: number of elements (of type T)
 	// context: opencl context that belongs to a virtual card.
 	// normally contexts are not good for asynchronous copies, so a physical card shares same context with all of its virtual cards to overlap data copies in multi-threaded array access
-	ClArray(size_t size, ClContext context)
+	ClArray(size_t size, ClContext context):n(size),err(CL_SUCCESS),mem(clCreateBuffer( *context.ctxPtr(), CL_MEM_READ_WRITE,sizeof(T) * n,NULL,&err))
 	{
-		n=std::make_shared<size_t>();
-		*n=size;
-
-		mem=std::shared_ptr<cl_mem>(new cl_mem(),[](cl_mem * ptr){if(CL_SUCCESS!=clReleaseMemObject(*ptr)){std::cout<<"error: release mem"<<std::endl;} delete ptr;});
-		cl_int err;
-		*mem = clCreateBuffer( *context.ctxPtr(), CL_MEM_READ_WRITE,sizeof(T) * *n,NULL,&err);
 		if(CL_SUCCESS != err)
 		{
 			throw std::invalid_argument("error: buffer");
 		}
 	}
 
-	// this is for internal logic only that just serves memory handle for opencl operations
-	cl_mem getMem(){ return *mem; }
-	cl_mem * getMemPtr(){ return mem.get(); }
+	const cl_mem getMem() const noexcept { return mem; }
 
+	~ClArray()
+	{
+		if(CL_SUCCESS!=clReleaseMemObject(mem))
+		{
+			std::cout<<"error: release mem"<<std::endl;
+		}
+	}
 private:
-	// these should be enough for keeping track of data in multi-threaded usage without causing any double-free errors
-	std::shared_ptr<cl_mem> mem;
-	std::shared_ptr<size_t> n;
-
+	const size_t n;
+	cl_int err;
+	const cl_mem mem;
 };
 
 

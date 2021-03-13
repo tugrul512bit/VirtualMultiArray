@@ -180,7 +180,6 @@ public:
 			computeFind = std::unique_ptr<ClCompute>(new ClCompute(*ctx,*dv,std::string(R"(
                      #define __N__ ( )")+std::to_string(sz)+std::string(R"(UL )
                      #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
-
 	                 __kernel void )")+std::string(R"(find)")+std::to_string(vaId)+ std::string(R"(
 	                 (                   __global unsigned char * memberVal,
 	                                     __global int * memberOfs, 
@@ -198,10 +197,8 @@ public:
                        int sz = *findListSize;                  
 	                   int valCtr = 0;
 	                   int cmpCtr = 0;
-
                        /* optimized data load for bigger member sizes */
                        size_t remaining = mSize % 4; // loading by 4-byte unsigned integers
-
 	                   size_t oSizeI0= oSize*id + *memberOfs;
 	                   size_t oSizeI1= oSizeI0 + mSize; 
  
@@ -216,7 +213,6 @@ public:
                        }
                        else
                        {
-
 						   for(size_t i=oSizeI0; i<oSizeI1; i++)
 						   {
 							   cmpCtr+=(arr[i] == memberVal[valCtr]);                       
@@ -239,7 +235,7 @@ public:
 			computeFind->addParameter(*ctx,"found index list",(foundIdListSize + 1)*sizeof(size_t),2);
 			computeFind->addParameter(*ctx,"object size",64,3);
 			computeFind->addParameter(*ctx,"member size",64,4);
-			computeFind->addParameter(*ctx,"data buffer",64,5,gpu->getMemPtr());
+			computeFind->addParameter(*ctx,"data buffer",64,5,gpu->getMem());
 			computeFind->addParameter(*ctx,"found index list size",64,6);
 			computeFind->setKernelArgs();
 		}
