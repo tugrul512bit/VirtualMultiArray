@@ -28,7 +28,7 @@ public:
 	// size: number of elements (of type T)
 	// context: opencl context that belongs to a virtual card.
 	// normally contexts are not good for asynchronous copies, so a physical card shares same context with all of its virtual cards to overlap data copies in multi-threaded array access
-	ClArray(size_t size, ClContext context):n(size),err(CL_SUCCESS),mem(clCreateBuffer( *context.ctxPtr(), CL_MEM_READ_WRITE,sizeof(T) * n,NULL,&err))
+	ClArray(size_t size, ClContext context):n(size),mem(clCreateBuffer( *context.ctxPtr(), CL_MEM_READ_WRITE,sizeof(T) * n,NULL,&err))
 	{
 		if(CL_SUCCESS != err)
 		{
