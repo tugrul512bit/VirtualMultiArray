@@ -19,17 +19,17 @@ class CpuBenchmarker
 public:
 	CpuBenchmarker():CpuBenchmarker(0,"",0)
 	{
-
+		measurementTarget=nullptr;
 	}
 
 	CpuBenchmarker(size_t bytesToBench):CpuBenchmarker(bytesToBench,"",0)
 	{
-
+		measurementTarget=nullptr;
 	}
 
 	CpuBenchmarker(size_t bytesToBench, std::string infoExtra):CpuBenchmarker(bytesToBench,infoExtra,0)
 	{
-
+		measurementTarget=nullptr;
 	}
 
 	CpuBenchmarker(size_t bytesToBench, std::string infoExtra, size_t countForThroughput):t1(std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::high_resolution_clock::now().time_since_epoch()))
@@ -37,12 +37,23 @@ public:
 		bytes=bytesToBench;
 		info=infoExtra;
 		count = countForThroughput;
+		measurementTarget=nullptr;
+	}
+
+	// writes elapsed time (in seconds) to this variable upon destruction
+	void addTimeWriteTarget(double * measurement)
+	{
+		measurementTarget=measurement;
 	}
 
 	~CpuBenchmarker()
 	{
 		std::chrono::nanoseconds t2 =  std::chrono::duration_cast< std::chrono::nanoseconds >(std::chrono::high_resolution_clock::now().time_since_epoch());
 		size_t t = t2.count() - t1.count();
+		if(measurementTarget!=nullptr)
+		{
+			*measurementTarget=t/1000000000.0; // seconds
+		}
 		if(info!=std::string(""))
 			std::cout<<info<<": ";
 		std::cout<<t<<" nanoseconds    ";
@@ -68,6 +79,7 @@ private:
 	size_t bytes;
 	size_t count;
 	std::string info;
+	double * measurementTarget;
 };
 
 #endif /* CPUBENCHMARKER_H_ */
