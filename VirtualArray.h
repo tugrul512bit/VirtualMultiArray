@@ -30,6 +30,17 @@ struct LMutex
 	char padding[finalMutexPaddingSize];
 };
 
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+// windows
+
+#ifndef __restrict__
+#define __restrict__ __restrict
+#endif
+
+#else
+// linux
+#endif
+
 // this is a non-threadsafe single-graphics-card using virtual array
 template<typename T>
 class VirtualArray
@@ -102,9 +113,17 @@ public:
 		const size_t selectedActivePage = selectedPage % nump;
 
 		Page<T> * const __restrict__ page = cpu.get() + selectedActivePage;
-
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		// windows
+		cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_TRUE, sizeof(T) * (selectedPage * szp + (index % szp)), sizeof(T), page->ptr(), 0, nullptr, nullptr);
+		if (CL_SUCCESS != err)
+		{
+			throw std::invalid_argument("error: stream read buffer");
+		}
+#else
+		// linux
 		cl_event evt;
-		cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (selectedPage * szp + (index%szp)) , sizeof(T), page->ptr(), 0, nullptr,&evt);
+		cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (selectedPage * szp + (index % szp)), sizeof(T), page->ptr(), 0, nullptr, &evt);
 		if (CL_SUCCESS != err)
 		{
 			throw std::invalid_argument("error: stream read buffer");
@@ -113,23 +132,25 @@ public:
 
 		const cl_event_info evtInf = CL_EVENT_COMMAND_EXECUTION_STATUS;
 		cl_int evtStatus0 = 0;
-		if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+		if (CL_SUCCESS != clGetEventInfo(evt, evtInf, sizeof(cl_int), &evtStatus0, nullptr))
 		{
 			throw std::invalid_argument("error: event info stream read");
 		}
 
 		while (evtStatus0 != CL_COMPLETE)
 		{
-			if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+			if (CL_SUCCESS != clGetEventInfo(evt, evtInf, sizeof(cl_int), &evtStatus0, nullptr))
 			{
 				throw std::invalid_argument("error: event info stream read");
 			}
 			std::this_thread::yield();
 		}
-		if(CL_SUCCESS != clReleaseEvent(evt))
+		if (CL_SUCCESS != clReleaseEvent(evt))
 		{
-			std::cout<<"error: release event"<<std::endl;
+			std::cout << "error: release event" << std::endl;
 		}
+
+#endif
 		return page->ptr()[0];
 	}
 
@@ -141,9 +162,17 @@ public:
 
 		Page<T> * const __restrict__ page = cpu.get() + selectedActivePage;
 		page->ptr()[0]=val;
-
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		// windows
+		cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_TRUE, sizeof(T) * (selectedPage * szp + (index % szp)), sizeof(T), page->ptr(), 0, nullptr, nullptr);
+		if (CL_SUCCESS != err)
+		{
+			throw std::invalid_argument("error: stream write buffer");
+		}
+#else
+		// linux
 		cl_event evt;
-		cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (selectedPage * szp + (index%szp)) , sizeof(T), page->ptr(), 0, nullptr,&evt);
+		cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (selectedPage * szp + (index % szp)), sizeof(T), page->ptr(), 0, nullptr, &evt);
 		if (CL_SUCCESS != err)
 		{
 			throw std::invalid_argument("error: stream write buffer");
@@ -152,23 +181,26 @@ public:
 
 		const cl_event_info evtInf = CL_EVENT_COMMAND_EXECUTION_STATUS;
 		cl_int evtStatus0 = 0;
-		if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+		if (CL_SUCCESS != clGetEventInfo(evt, evtInf, sizeof(cl_int), &evtStatus0, nullptr))
 		{
 			throw std::invalid_argument("error: event info stream write");
 		}
 
 		while (evtStatus0 != CL_COMPLETE)
 		{
-			if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+			if (CL_SUCCESS != clGetEventInfo(evt, evtInf, sizeof(cl_int), &evtStatus0, nullptr))
 			{
 				throw std::invalid_argument("error: event info stream write");
 			}
 			std::this_thread::yield();
 		}
-		if(CL_SUCCESS != clReleaseEvent(evt))
+		if (CL_SUCCESS != clReleaseEvent(evt))
 		{
-			std::cout<<"error: release event"<<std::endl;
+			std::cout << "error: release event" << std::endl;
 		}
+
+#endif
+		
 	}
 
 	// array access for writing to an element at an index
