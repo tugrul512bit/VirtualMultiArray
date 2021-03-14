@@ -46,7 +46,7 @@ public:
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		computeFind = nullptr;
-		dv = std::make_shared<ClDevice>();
+		dv = std::make_unique<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= std::make_shared<ClContext>(*dv,0);
 
@@ -58,7 +58,7 @@ public:
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
 
-		pageCache = std::make_shared<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,ctx,cpu);
+		pageCache = std::make_unique<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,cpu);
 
 	}
 
@@ -71,7 +71,7 @@ public:
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
 	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		computeFind = nullptr;
-		dv = std::make_shared<ClDevice>();
+		dv = std::make_unique<ClDevice>();
 		*dv=device.generate()[0];
 		ctx= context.generate();
 		q= std::make_shared<ClCommandQueue>(*ctx,*dv);
@@ -81,7 +81,7 @@ public:
 		{
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
-		pageCache = std::make_shared<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,ctx,cpu);
+		pageCache = std::make_unique<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,cpu);
 
 	}
 
@@ -411,24 +411,30 @@ private:
 	int nump;
 
 	// opencl device
-	std::shared_ptr<ClDevice> dv;
+	std::unique_ptr<ClDevice> dv;
 
 	// opencl context
+	// shared between different virtualArray instances
 	std::shared_ptr<ClContext> ctx;
 
 	// opencl queue
+	// shared between all active pages / page cache pages
 	std::shared_ptr<ClCommandQueue> q;
 
 	// kernel + parameters for "find"
 	std::unique_ptr<ClCompute> computeFind;
 
 	// opencl buffer in graphics card
+	// shared between all active pages / page cache pages
 	std::shared_ptr<ClArray<T>> gpu;
 
 	// opencl-pinned buffer in RAM
+	// shared between all active pages / page cache pages
 	std::shared_ptr<Page<T>> cpu;
 
-	std::shared_ptr<Cache<T>> pageCache;
+
+	// LRU cache
+	std::unique_ptr<Cache<T>> pageCache;
 
 };
 

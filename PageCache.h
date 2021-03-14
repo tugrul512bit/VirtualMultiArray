@@ -52,7 +52,7 @@ public:
 
 
 	Cache(size_t sizePrm, std::shared_ptr<ClCommandQueue> cq, std::shared_ptr<ClArray<T>> arr,
-			int pageSize, bool usePinnedArraysOnly, std::shared_ptr<ClContext> ctx,
+			int pageSize, bool usePinnedArraysOnly,
 			std::shared_ptr<Page<T>> cpuArr):size(sizePrm),ctr(0),szp(pageSize),directCache(nullptr)
 	{
 		q=cq;
