@@ -33,14 +33,6 @@
 #include"ClDevice.h"
 #include"VirtualArray.h"
 
-constexpr int ASSUMED_L1_DATA_CACHE_LINE_SIZE = 64;
-constexpr int computedMutexPaddingSize=ASSUMED_L1_DATA_CACHE_LINE_SIZE-sizeof(std::mutex);
-constexpr int finalMutexPaddingSize=((computedMutexPaddingSize<0)?1:computedMutexPaddingSize);
-struct LMutex
-{
-	std::mutex m;
-	char padding[finalMutexPaddingSize];
-};
 
 template<typename T>
 class VirtualMultiArray
@@ -525,6 +517,89 @@ public:
 
 		}
 	}
+
+	// get data directly from vram, bypassing LRU cache
+	// if streamStart() was not called before uncached stream-read commands, then uncached data will not be guaranteed to be updated
+	// not thread-safe for overlapping regions
+	T getUncached(const size_t index) const
+	{
+		const size_t selectedPage = index/pageSize;
+		const size_t numInterleave = selectedPage/numDevice;
+		const size_t selectedVirtualArray = selectedPage%numDevice;
+		const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
+		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
+		return va.get()[selectedVirtualArray].getUncached(selectedElement);
+	}
+
+	// set data directly to vram, bypassing LRU cache
+	// if streamStop() was not called after uncached stream-write commands, then cached data after this will not be guaranteed to be updated
+	// not thread-safe for overlapping regions
+	void setUncached(const size_t index, const T& val ) const
+	{
+		const size_t selectedPage = index/pageSize;
+		const size_t numInterleave = selectedPage/numDevice;
+		const size_t selectedVirtualArray = selectedPage%numDevice;
+		const size_t selectedElement = numInterleave*pageSize + (index%pageSize);
+		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
+		va.get()[selectedVirtualArray].setUncached(selectedElement,val);
+	}
+
+	// writes all edited active pages to vram
+	// resets all active pages
+	// use this before a series of uncached reads/writes
+	void streamStart()
+	{
+		std::vector<std::thread> parallel;
+		for(int i=0;i<numDevice;i++)
+		{
+			parallel.push_back(std::thread([&,i]()
+			{
+				std::unique_lock<std::mutex> lock(pageLock.get()[i].m);
+				size_t nump = va.get()[i].getNumP();
+				for(size_t pg = 0;pg<nump;pg++)
+				{
+					va.get()[i].flushPage(pg);
+				}
+			}));
+		}
+		for(int i=0;i<numDevice;i++)
+		{
+			if(parallel[i].joinable())
+			{
+				parallel[i].join();
+			}
+		}
+	}
+
+	// reloads all edited frozen pages from vram to active pages (LRU cache)
+	// resets all active pages
+	// overwrites any cached writes happened before
+	// use this after a series of uncached reads/writes
+	void streamStop()
+	{
+		std::vector<std::thread> parallel;
+		for(int i=0;i<numDevice;i++)
+		{
+			parallel.push_back(std::thread([&,i]()
+			{
+				std::unique_lock<std::mutex> lock(pageLock.get()[i].m);
+				size_t nump = va.get()[i].getNumP();
+				for(size_t pg = 0;pg<nump;pg++)
+				{
+					va.get()[i].reloadPage(pg);
+				}
+			}));
+		}
+		for(int i=0;i<numDevice;i++)
+		{
+			if(parallel[i].joinable())
+			{
+				parallel[i].join();
+			}
+		}
+	}
+
+
 
 	// using gpu compute power, finds an element with given member value, returns its index
 	// obj: object instance

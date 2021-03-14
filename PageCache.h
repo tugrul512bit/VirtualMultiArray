@@ -30,7 +30,7 @@ struct CacheNode
 };
 
 template<typename T>
-void insertionSort(CacheNode<T>* buf, int size) {
+void insertionSort(CacheNode<T> * const __restrict__ buf, const int size) {
 	CacheNode<T> keyUsed;
 	int j;
 	for(int i = 1; i<size; i++) {
@@ -245,7 +245,7 @@ private:
 		if (sel->isEdited())
 		{
 			// upload edited
-			cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (sel->getTargetGpuPage()) * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
+			cl_int err = 	clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (sel->getTargetGpuPage()) * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, nullptr);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: write buffer");
@@ -253,7 +253,7 @@ private:
 
 			// download new
 			sel->setTargetGpuPage(selectedPage);
-			err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt/*nullptr*/);
+			err = 			clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt/*nullptr*/);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: read buffer");
@@ -265,7 +265,7 @@ private:
 		{
 			// download new
 			sel->setTargetGpuPage(selectedPage);
-			cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt/*nullptr*/);
+			cl_int err = 	clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * selectedPage * szp, sizeof(T) * szp, sel->ptr(), 0, nullptr, &evt/*nullptr*/);
 			if (CL_SUCCESS != err)
 			{
 				throw std::invalid_argument("error: read buffer");

@@ -21,6 +21,15 @@
 #include"PageCache.h"
 #include<CL/cl.h>
 
+constexpr int ASSUMED_L1_DATA_CACHE_LINE_SIZE = 64;
+constexpr int computedMutexPaddingSize=ASSUMED_L1_DATA_CACHE_LINE_SIZE-sizeof(std::mutex);
+constexpr int finalMutexPaddingSize=((computedMutexPaddingSize<0)?1:computedMutexPaddingSize);
+struct LMutex
+{
+	std::mutex m;
+	char padding[finalMutexPaddingSize];
+};
+
 // this is a non-threadsafe single-graphics-card using virtual array
 template<typename T>
 class VirtualArray
@@ -73,6 +82,7 @@ public:
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
 		pageCache = std::make_shared<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,ctx,cpu);
+
 	}
 
 
@@ -83,6 +93,82 @@ public:
 		const size_t selectedPage = index/szp;
 		Page<T> * sel = pageCache->access(selectedPage);
 		return sel->get(index - selectedPage * szp);
+	}
+
+	// uncached array access for reading an element at an index
+	T getUncached(const size_t & index) const
+	{
+		const size_t selectedPage = index/szp;
+		const size_t selectedActivePage = selectedPage % nump;
+
+		Page<T> * const __restrict__ page = cpu.get() + selectedActivePage;
+
+		cl_event evt;
+		cl_int err = clEnqueueReadBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (selectedPage * szp + (index%szp)) , sizeof(T), page->ptr(), 0, nullptr,&evt);
+		if (CL_SUCCESS != err)
+		{
+			throw std::invalid_argument("error: stream read buffer");
+		}
+		clFlush(q->getQueue());
+
+		const cl_event_info evtInf = CL_EVENT_COMMAND_EXECUTION_STATUS;
+		cl_int evtStatus0 = 0;
+		if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+		{
+			throw std::invalid_argument("error: event info stream read");
+		}
+
+		while (evtStatus0 != CL_COMPLETE)
+		{
+			if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+			{
+				throw std::invalid_argument("error: event info stream read");
+			}
+			std::this_thread::yield();
+		}
+		if(CL_SUCCESS != clReleaseEvent(evt))
+		{
+			std::cout<<"error: release event"<<std::endl;
+		}
+		return page->ptr()[0];
+	}
+
+	// uncached array access for reading an element at an index
+	void setUncached(const size_t & index, const T val) const
+	{
+		const size_t selectedPage = index/szp;
+		const size_t selectedActivePage = selectedPage % nump;
+
+		Page<T> * const __restrict__ page = cpu.get() + selectedActivePage;
+		page->ptr()[0]=val;
+
+		cl_event evt;
+		cl_int err = clEnqueueWriteBuffer(q->getQueue(), gpu->getMem(), CL_FALSE, sizeof(T) * (selectedPage * szp + (index%szp)) , sizeof(T), page->ptr(), 0, nullptr,&evt);
+		if (CL_SUCCESS != err)
+		{
+			throw std::invalid_argument("error: stream write buffer");
+		}
+		clFlush(q->getQueue());
+
+		const cl_event_info evtInf = CL_EVENT_COMMAND_EXECUTION_STATUS;
+		cl_int evtStatus0 = 0;
+		if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+		{
+			throw std::invalid_argument("error: event info stream write");
+		}
+
+		while (evtStatus0 != CL_COMPLETE)
+		{
+			if(CL_SUCCESS != clGetEventInfo(evt, evtInf,sizeof(cl_int), &evtStatus0, nullptr))
+			{
+				throw std::invalid_argument("error: event info stream write");
+			}
+			std::this_thread::yield();
+		}
+		if(CL_SUCCESS != clReleaseEvent(evt))
+		{
+			std::cout<<"error: release event"<<std::endl;
+		}
 	}
 
 	// array access for writing to an element at an index
@@ -144,6 +230,20 @@ public:
 		Page<T> * sel = pageCache->access(selectedPage);
 		sel->writeN(in, index - selectedPage * szp, range);
 		sel->markAsEdited();
+	}
+
+	// operation for updating pages after uncached streaming
+	// overwrites all cached (but not evicted yet) write operations
+	void reloadPage(size_t pageIdx)
+	{
+		Page<T> * sel = cpu.get()+pageIdx;
+		cl_int err=clEnqueueReadBuffer(q->getQueue(),gpu->getMem(),CL_FALSE,sizeof(T)*(sel->getTargetGpuPage())* szp,sizeof(T)* szp,sel->ptr(),0,nullptr,nullptr);
+		if(CL_SUCCESS != err)
+		{
+			throw std::invalid_argument("error: flush page ");
+		}
+		clFinish(q->getQueue());
+		sel->reset();
 	}
 
 	// a sub-operation of VirtualMultiArray::find() to do fully gpu-accelerated element search
@@ -329,7 +429,6 @@ private:
 	std::shared_ptr<Page<T>> cpu;
 
 	std::shared_ptr<Cache<T>> pageCache;
-
 
 };
 
