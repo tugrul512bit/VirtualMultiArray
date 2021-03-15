@@ -66,7 +66,14 @@ public:
 	//          3) "average multithreaded usage limit per physical card". {1,2,3} means no data-copy-overlap on first card, 2 copies in-flight on second card, 3 copies concurrently on 3rd card
 	//          4) to disable a card, give it 0. {1,0,5} means first card is physical, second card is not used, third card will have intense pcie activity and VRAM consumption
 	//          5) every value in vector means extra RAM usage.
+	//			6) "number of LRU cache per physical card" ==> each virtual card caches every k-th page in interleaved form with other virtual cards
+	//				for example: {1,1,1} with numActivePage=5 means pages are cached in this order: (c=cache) c1 c2 c3 c1 c2 c3 c1 c2 c3 c1 c2 c3 c1 c2 c3
+	//																										  |        |         |       |         |
+	//																										c1: LRU cache that serves pages at index%3 = 0
+	//																										c2: LRU cache at index%3 = 1
+	//																										c3: LRU cache at index%3 = 2
 	//          default: {4,4,...,4} all cards are given 4 data channels so total RAM usage becomes this: { nGpu * 4 * pageSize * sizeof(T) * numActivePage }
+	//				which also means 4 independent LRU caches per physical card: c1_1 c2_1 c3_1 c1_2 c2_2 c3_2 .... c1_4 c2_4 c3_4 c1_1 c2_1 ...
 	// mem:
 	// 			UseDefault = uses user-input values from "memMult" parameter,
 	//			UseVramRatios=allocates from gpus in tune with their vram sizes to maximize array capacity,
