@@ -32,11 +32,13 @@ int main(int argC, char ** argV)
 		int activePagesPerGpuInstance = 5;
 
 		// not just "int" but any POD of hundreds of kilobytes size too
+		// A "Particle" object with 40-50 bytes is much more efficient for pcie data transfers, than an int, unless page size (cache line) is big enough
 		VirtualMultiArray<int> intArr(numElements,d.requestGpus(),pageSize,activePagesPerGpuInstance);
 
+		// thread-safe (scales up to 8 threads per logical core): #pragma omp parallel for num_threads(64)
 		for(size_t i=0;i<numElements;i++)
 			intArr.set(i,i*2);
-			
+					
 		for(size_t i=0;i<numElements;i++)
 		{
 			int var = intArr.get(i);
