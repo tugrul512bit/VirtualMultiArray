@@ -101,6 +101,7 @@ public:
 	// usePinnedArraysOnly: pins all active-page buffers to stop OS paging them in/out while doing gpu copies (pageable buffers are slower but need less *resources*)
 	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50,
 			std::vector<int> memMult=std::vector<int>(), MemMult mem=MemMult::UseDefault, const bool usePinnedArraysOnly=true){
+
 		int numPhysicalCard = device.size();
 
 		int nDevice = 0;
@@ -279,6 +280,12 @@ public:
 
 		std::unique_lock<std::mutex> lock(pageLock.get()[selectedVirtualArray].m);
 		return va.get()[selectedVirtualArray].get(selectedElement);
+	}
+
+	// it loads the data page that holds the element at "index" from video-memory into LRU cache (or updates its position in LRU)
+	void prefetch(const size_t & index) const
+	{
+		std::thread([=](){ const size_t thisIndex = index; auto thisArr = *this;   thisArr.get(thisIndex);}).detach();
 	}
 
 	// put data to index
