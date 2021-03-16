@@ -31,21 +31,39 @@ public:
 			{
 				{
 					std::unique_lock<std::mutex> lck(mut);
-					cond.wait(lck);
+
 
 					if(!iQ.empty())
 					{
 						currentIndex = iQ.front();
 						iQ.pop();
 					}
+					else
+					{
+						cond.wait_for(lck,std::chrono::milliseconds(100));
+						continue;
+					}
 				}
+
 				if(currentIndex==-1)
+				{
 					work=false;
+				}
 				else
 				{
 					va.get(currentIndex);
 				}
 			}
+
+			{
+				std::unique_lock<std::mutex> lck(mut);
+				while(!iQ.empty())
+				{
+					iQ.pop();
+				}
+				iQ.push(-5);
+			}
+
 		});
 	}
 
@@ -62,9 +80,36 @@ public:
 	~Prefetcher()
 	{
 		push(-1);
-		cond.notify_one();
+		bool work = true;
+
+		while(work)
+		{
+			{
+				std::unique_lock<std::mutex> lck(mut);
+				if(!iQ.empty())
+				{
+					size_t index = iQ.front();
+					iQ.pop();
+					if(index == -5)
+					{
+						// close signal received
+						work=false;
+					}
+					else if (index == -1)
+					{
+						iQ.push(-1);
+
+					}
+				}
+			}
+			cond.notify_one();
+			std::this_thread::yield();
+		}
+
 		if(thr.joinable())
 			thr.join();
+
+
 	}
 private:
 	std::condition_variable cond;
