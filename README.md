@@ -27,15 +27,26 @@ int main(int argC, char ** argV)
 	try
 	{
 		GraphicsCardSupplyDepot d;
-		size_t numElements = 1000;
+		size_t numElements = 2000;
 		int pageSize = 10;
 		int activePagesPerGpuInstance = 5;
 
 		VirtualMultiArray<int> intArr(numElements,d.requestGpus(),pageSize,activePagesPerGpuInstance);
 
-		intArr[3]=5; // or intArr.set(3,5);
-		int var = intArr[3]; // or intArr.get(3);
-		std::cout<<var<<std::endl;
+		for(size_t i=0;i<numElements;i++)
+			intArr.set(i,i*2);
+			
+		for(size_t i=0;i<numElements;i++)
+		{
+			int var = intArr.get(3);
+			std::cout<<var<<std::endl;
+			
+			// just a single-threaded-access optimization
+			if((i<numElements-pageSize) && (i%pageSize==0) )
+			{
+				intArr.prefetch(i+pageSize); // asynchronously load next page into LRU
+			}
+		}
 	}
 	catch (std::exception& ex)
 	{
@@ -43,30 +54,4 @@ int main(int argC, char ** argV)
 	}
 	return 0;
 }
-```
-
-but its only optimized for medium to large sized objects due to pci-e bridge latency, for example a Particle class with x,y,z,vx,vy,vz,... fields is more efficient in access bandwidth than int.
-
-```cpp
-GraphicsCardSupplyDepot depot;
-
-const size_t n = 1024*10000;
-const size_t pageSize=1024;
-const int maxActivePagesPerGpu = 100;
-
-// uses VRAMs for 10M particles
-// uses RAM for paging (active pages)
-VirtualMultiArray<Particle> particleArray(n,depot.requestGpus(),pageSize,maxActivePagesPerGpu);
-
-particleArray.set(5,Particle(31415));
-
-std::cout<<particleArray.get(5).getId()<<std::endl;
-
-Particle p = particleArray[5];
-std::cout<<p.getId()<<std::endl
-
-// returns indices of particles with id member value = p.id
-// gpu-accelerated, does not use RAM bandwidth for searching
-std::vector<size_t> indexArray = particleArray.find(p,p.id);
-
 ```
