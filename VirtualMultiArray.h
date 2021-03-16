@@ -5,6 +5,26 @@
  *      Author: tugrul
  */
 
+/*
+ * A virtual array that uses graphics cards as backing store, optimized with an N-way LRU cache per physical graphics card
+ * Page: a chunk of data that is traded between RAM and VRAM to keep necessary content close to user
+ * Page Size: number of elements in a page / cache line size of LRU
+ * Memory Multiplier: VRAM usage ratio per graphics card, also the number of LRUs per graphics card, also the number of parallel data channels per card
+ * 		Every virtual gpu is produced from a physical gpu and is given 1 LRU cache, 1 OpenCL command queue, X amount of VRAM
+ * 		So that I/O can be overlapped between other cards or other virtual gpus of same physical gpu
+ * Active Page: a chunk of data that is on RAM within LRU cache (with a computed physical index)
+ * Frozen Page: a chunk of data in VRAM (with a computed virtual index)
+ * Number of Active Pages = number of cache lines for each LRU
+ *
+ *
+ * How to hide I/O latency: Using more threads than CPU logical cores when accessing elements with any method except uncached versions
+ * 		Currently only Linux support for the I/O latency hiding
+ * How to reduce average latency per element for sequential access: use bulk read/write (readOnlyGetN, writeOnlySetN,mappedReadWriteAccess)
+ * 		Also allocate more(and larger) active pages (cache lines) for higher amounts of threads accessing concurrently
+ * How to increase throughput for random-access: decrease page size (cache line size), increase number of active pages (cache lines)
+ * How to decrease latency for random-access: use getUncached/setUncached methods between streamStart/streamStop commands.
+ *
+ */
 
 #ifndef VIRTUALMULTIARRAY_H_
 #define VIRTUALMULTIARRAY_H_
@@ -16,7 +36,7 @@
 #include <stdexcept>
 #include <functional>
 
-// this is for mappedReadWriteAccess --> for linux
+
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
 // windows
 #include<memoryapi.h>
@@ -39,7 +59,7 @@ class VirtualMultiArray
 {
 public:
 
-	// to choose
+
 	enum MemMult {
 
 		// equal data distribution on all gpu instances
