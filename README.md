@@ -31,6 +31,7 @@ int main(int argC, char ** argV)
 		int pageSize = 10;
 		int activePagesPerGpuInstance = 5;
 
+		// not just "int" but any POD of hundreds of kilobytes size too
 		VirtualMultiArray<int> intArr(numElements,d.requestGpus(),pageSize,activePagesPerGpuInstance);
 
 		for(size_t i=0;i<numElements;i++)
@@ -38,10 +39,11 @@ int main(int argC, char ** argV)
 			
 		for(size_t i=0;i<numElements;i++)
 		{
-			int var = intArr.get(3);
+			int var = intArr.get(i);
 			std::cout<<var<<std::endl;
 			
 			// just a single-threaded-access optimization
+			// to hide pcie latency
 			if((i<numElements-pageSize) && (i%pageSize==0) )
 			{
 				intArr.prefetch(i+pageSize); // asynchronously load next page into LRU
