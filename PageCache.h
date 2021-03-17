@@ -48,13 +48,16 @@ template<typename T>
 class Cache
 {
 public:
-	Cache():size(0),ctr(0),szp(0),gpu(nullptr),q(nullptr),directCache(nullptr){fImplementation= [&](const size_t & ind){ Page<T> * result=nullptr; return result;};}
+	Cache():size(0),ctr(0),szp(0),gpu(nullptr),q(nullptr),directCache(nullptr){ cacheHit=0; cacheMiss=0;  fImplementation= [&](const size_t & ind){ Page<T> * result=nullptr; return result;};}
 
 
 	Cache(size_t sizePrm, std::shared_ptr<ClCommandQueue> cq, std::shared_ptr<ClArray<T>> arr,
 			int pageSize, bool usePinnedArraysOnly,
-			std::shared_ptr<Page<T>> cpuArr):size(sizePrm),ctr(0),szp(pageSize),directCache(nullptr)
+			std::shared_ptr<Page<T>> cpuArr,
+			bool hitRatioDebuggingEnabled=false):size(sizePrm),ctr(0),szp(pageSize),directCache(nullptr)
 	{
+		cacheHit=0;
+		cacheMiss=0;
 		q=cq;
 		gpu=arr;
 
@@ -63,15 +66,35 @@ public:
 			directCache = cpuArr.get();
 			updatePage(directCache,0ull);
 			directCache->reset();
-			fImplementation=[&](const size_t & ind)
+			if(hitRatioDebuggingEnabled)
 			{
-				if(directCache->getTargetGpuPage()!=ind)
+				fImplementation=[&](const size_t & ind)
 				{
-					updatePage(directCache, ind);
-					directCache->reset();
-				}
-				return directCache;
-			};
+					if(directCache->getTargetGpuPage()!=ind)
+					{
+						updatePage(directCache, ind);
+						directCache->reset();
+						cacheMiss++;
+					}
+					else
+					{
+						cacheHit++;
+					}
+					return directCache;
+				};
+			}
+			else
+			{
+				fImplementation=[&](const size_t & ind)
+				{
+					if(directCache->getTargetGpuPage()!=ind)
+					{
+						updatePage(directCache, ind);
+						directCache->reset();
+					}
+					return directCache;
+				};
+			}
 		}
 		else if(sizePrm<13)
 		{
@@ -84,10 +107,20 @@ public:
 				usage.push_back(node);
 			}
 			// array-based low-constant cost
-			fImplementation=[&](const size_t & ind)
+			if(hitRatioDebuggingEnabled)
 			{
-				return accessFast(ind);
-			};
+				fImplementation=[&](const size_t & ind)
+				{
+					return accessFastDebug(ind);
+				};
+			}
+			else
+			{
+				fImplementation=[&](const size_t & ind)
+				{
+					return accessFast(ind);
+				};
+			}
 		}
 		else
 		{
@@ -100,10 +133,20 @@ public:
 				scalableMapping[(size_t)i]=scalableCounts.begin();
 			}
 			// map-linked-list-based good scaling
-			fImplementation=[&](const size_t & ind)
+			if(hitRatioDebuggingEnabled)
 			{
-				return accessScalable(ind);
-			};
+				fImplementation=[&](const size_t & ind)
+				{
+					return accessScalableDebug(ind);
+				};
+			}
+			else
+			{
+				fImplementation=[&](const size_t & ind)
+				{
+					return accessScalable(ind);
+				};
+			}
 		}
 	}
 
@@ -186,6 +229,105 @@ public:
 
 		return result;
 	}
+
+
+
+	Page<T> * const accessScalableDebug(const size_t & index)
+	{
+		Page<T> * result=nullptr;
+		typename std::unordered_map<size_t,typename std::list<Page<T>*>::iterator>::iterator it = scalableMapping.find(index);
+		if(it == scalableMapping.end())
+		{
+			// not found in cache
+			Page<T> * old = scalableCounts.back();
+
+			size_t oldIndex = old->getTargetGpuPage();
+			if(old->getTargetGpuPage()!=index)
+			{
+				updatePage(old, index);
+				old->reset();
+			}
+
+			scalableCounts.pop_back();
+			scalableMapping.erase(oldIndex);
+
+
+			// add a new
+			scalableCounts.push_front(old);
+			typename std::list<Page<T>*>::iterator iter = scalableCounts.begin();
+			scalableMapping[index]=iter;
+
+			result = old;
+			cacheMiss++;
+		}
+		else
+		{
+			// found in cache
+			// remove
+			Page<T> * old = *(it->second);
+			scalableCounts.erase(it->second);
+
+
+			// add a new
+			scalableCounts.push_front(old);
+			auto iter = scalableCounts.begin();
+			scalableMapping[index]=iter;
+
+			result = old;
+			cacheHit++;
+		}
+
+
+		return result;
+	}
+
+
+	Page<T> * const accessFastDebug(const size_t & index)
+	{
+		Page<T> * result=nullptr;
+		auto it = std::find_if(usage.begin(),usage.end(),[index](const CacheNode<T>& n){ return n.index == index; });
+		if(it == usage.end())
+		{
+			if(usage[0].page->getTargetGpuPage()!=index)
+			{
+				updatePage(usage[0].page, index);
+				usage[0].page->reset();
+			}
+			usage[0].index=index;
+			usage[0].used=ctr++;
+			result = usage[0].page;
+			cacheMiss++;
+		}
+		else
+		{
+			it->used=ctr++;
+			result = it->page;
+			cacheHit++;
+		}
+		insertionSort(usage.data(),usage.size());
+
+		return result;
+	}
+
+	size_t getCacheHit() const noexcept
+	{
+		return cacheHit;
+	}
+
+	size_t getCacheMiss() const noexcept
+	{
+		return cacheMiss;
+	}
+
+	size_t getTotalAccess() const noexcept
+	{
+		return cacheMiss + cacheHit;
+	}
+
+	double getCacheHitRatio()
+	{
+		return cacheHit/(double)(cacheHit+cacheMiss);
+	}
 private:
 	size_t size;
 	size_t ctr;
@@ -196,6 +338,8 @@ private:
 
 	std::shared_ptr<ClCommandQueue> q;
 	std::shared_ptr<ClArray<T>> gpu;
+	size_t cacheHit;
+	size_t cacheMiss;
 	int szp;
 	Page<T> * directCache;
 

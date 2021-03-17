@@ -55,7 +55,11 @@ public:
 	// device: opencl wrapper that contains only 1 graphics card
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
-	VirtualArray(const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
+	// usePinnedArraysOnly: true=pins (LRU) cache array so OS can't page it out
+	// useLRUdebugging: uses a debugging version of LRU cache to be able to query cache hit/miss info
+	VirtualArray(	const size_t sizeP,  ClDevice device, const int sizePageP=1024, const int numActivePageP=50,
+					const bool usePinnedArraysOnly=true, const bool useLRUdebugging=false
+					):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		computeFind = nullptr;
 		dv = std::make_unique<ClDevice>();
 		*dv=device.generate()[0];
@@ -69,7 +73,7 @@ public:
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
 
-		pageCache = std::make_unique<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,cpu);
+		pageCache = std::make_unique<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,cpu,useLRUdebugging);
 
 	}
 
@@ -80,7 +84,9 @@ public:
 	// device: opencl wrapper that contains only 1 graphics card
 	// sizePageP: number of elements of each page (bigger pages = more RAM used)
 	// numActivePageP: parameter for number of active pages (in RAM) for interleaved access caching (instead of LRU, etc) with less book-keeping overhead
-	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50, const bool usePinnedArraysOnly=true):sz(sizeP),szp(sizePageP),nump(numActivePageP){
+	// useLRUdebugging: uses a debugging version of LRU cache to be able to query cache hit/miss info
+	VirtualArray(const size_t sizeP, ClContext context, ClDevice device, const int sizePageP=1024, const int numActivePageP=50,
+			const bool usePinnedArraysOnly=true, const bool useLRUdebugging=false):sz(sizeP),szp(sizePageP),nump(numActivePageP){
 		computeFind = nullptr;
 		dv = std::make_unique<ClDevice>();
 		*dv=device.generate()[0];
@@ -92,7 +98,7 @@ public:
 		{
 			cpu.get()[i]=Page<T>(szp,*ctx,*q,usePinnedArraysOnly);
 		}
-		pageCache = std::make_unique<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,cpu);
+		pageCache = std::make_unique<Cache<T>>(numActivePageP,q, gpu, szp,usePinnedArraysOnly,cpu,useLRUdebugging);
 
 	}
 
@@ -104,6 +110,11 @@ public:
 		const size_t selectedPage = index/szp;
 		Page<T> * sel = pageCache->access(selectedPage);
 		return sel->get(index - selectedPage * szp);
+	}
+
+	double getCacheHitRatio() const noexcept
+	{
+		return pageCache->getCacheHitRatio();
 	}
 
 	// uncached array access for reading an element at an index

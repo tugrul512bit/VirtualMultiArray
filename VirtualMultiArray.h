@@ -101,8 +101,11 @@ public:
 	//			UseVramRatios=allocates from gpus in tune with their vram sizes to maximize array capacity,
 	//			UsePcieRatios(not implemented)=allocation ratio for pcie specs to maximize bandwidth
 	// usePinnedArraysOnly: pins all active-page buffers to stop OS paging them in/out while doing gpu copies (pageable buffers are slower but need less *resources*)
+	// useLRUdebugging: true=uses a LRU algorithm that keeps cache hit/miss information for query (performance difference is negligible)
+	//		to query hit ratio, call getTotalCacheHitRatio() and other related methods
 	VirtualMultiArray(size_t size, std::vector<ClDevice> device, size_t pageSizeP=1024, int numActivePage=50,
-			std::vector<int> memMult=std::vector<int>(), MemMult mem=MemMult::UseDefault, const bool usePinnedArraysOnly=true){
+			std::vector<int> memMult=std::vector<int>(), MemMult mem=MemMult::UseDefault, const bool usePinnedArraysOnly=true,
+			const bool useLRUdebugging=false){
 		int numPhysicalCard = device.size();
 
 		int nDevice = 0;
@@ -232,7 +235,7 @@ public:
 			if(gpuCloneMult[i]>0)
 			{
 				actuallyUsedPhysicalGpuIndex[i]=ctr;
-				va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage,usePinnedArraysOnly);
+				va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>=ctr)?numInterleave:(numInterleave-1)) 	* pageSize,device[i],pageSize,numActivePage,usePinnedArraysOnly,useLRUdebugging);
 				ctr++;
 				gpuCloneMult[i]--;
 				ctrPhysicalCard++;
@@ -250,7 +253,7 @@ public:
 				{
 
 					int index = actuallyUsedPhysicalGpuIndex[i];
-					va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[index].getContext(),device[i],pageSize,numActivePage,usePinnedArraysOnly);
+					va.get()[ctr]=VirtualArray<T>(	((extraAllocDeviceIndex>= ctr)?numInterleave:(numInterleave-1)) 	* pageSize,va.get()[index].getContext(),device[i],pageSize,numActivePage,usePinnedArraysOnly,useLRUdebugging);
 					ctr++;
 					gpuCloneMult[i]--;
 					ctrPhysicalCard++;
@@ -289,6 +292,18 @@ public:
 	void prefetch(const size_t & index) const
 	{
 		funcRun->push(index);
+	}
+
+	// return average cache hit ratio of all LRUs of array
+	double getTotalCacheHitRatio()
+	{
+		double result = 0.0;
+		for(int i=0;i<numDevice;i++)
+		{
+			std::unique_lock<std::mutex> lock(pageLock.get()[i].m);
+			result += va.get()[i].getCacheHitRatio();
+		}
+		return result/numDevice;
 	}
 
 	// put data to index
