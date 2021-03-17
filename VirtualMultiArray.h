@@ -306,6 +306,17 @@ public:
 		return result/numDevice;
 	}
 
+	// reset cache hit ratios
+	void resetTotalCacheHitRatio() const
+	{
+
+		for(int i=0;i<numDevice;i++)
+		{
+			std::unique_lock<std::mutex> lock(pageLock.get()[i].m);
+			va.get()[i].resetCacheHitRatio();
+		}
+	}
+
 	// put data to index
 	// index: minimum value=0, maximum value=size-1 but not checked for overflowing/underflowing
 	void set(const size_t & index, const T & val) const{

@@ -309,14 +309,14 @@ public:
 		return result;
 	}
 
-	size_t getCacheHit() const noexcept
+	void resetCacheHit() noexcept
 	{
-		return cacheHit;
+		cacheHit=0;
 	}
 
-	size_t getCacheMiss() const noexcept
+	void resetCacheMiss() noexcept
 	{
-		return cacheMiss;
+		cacheMiss=0;
 	}
 
 	size_t getTotalAccess() const noexcept
@@ -324,7 +324,7 @@ public:
 		return cacheMiss + cacheHit;
 	}
 
-	double getCacheHitRatio()
+	double getCacheHitRatio() const noexcept
 	{
 		return cacheHit/(double)(cacheHit+cacheMiss);
 	}

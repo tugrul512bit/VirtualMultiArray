@@ -117,6 +117,12 @@ public:
 		return pageCache->getCacheHitRatio();
 	}
 
+	void resetCacheHitRatio() const noexcept
+	{
+		pageCache->resetCacheHit();
+		pageCache->resetCacheMiss();
+	}
+
 	// uncached array access for reading an element at an index
 	T getUncached(const size_t & index) const
 	{
