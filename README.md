@@ -35,7 +35,8 @@ int main(int argC, char ** argV)
 		// A "Particle" object with 40-50 bytes is much more efficient for pcie data transfers, than an int, unless page size (cache line) is big enough
 		VirtualMultiArray<int> intArr(numElements,d.requestGpus(),pageSize,activePagesPerGpuInstance);
 
-		// thread-safe (scales up to 8 threads per logical core): #pragma omp parallel for num_threads(64)
+		// thread-safe (scales up to 8 threads per logical core)
+		// #pragma omp parallel for num_threads(64)
 		for(size_t i=0;i<numElements;i++)
 			intArr.set(i,i*2);
 					
@@ -45,7 +46,7 @@ int main(int argC, char ** argV)
 			std::cout<<var<<std::endl;
 			
 			// just a single-threaded-access optimization
-			// to hide pcie latency
+			// to hide pcie latency of next page(LRU cache-line) of elements
 			if((i<numElements-pageSize) && (i%pageSize==0) )
 			{
 				intArr.prefetch(i+pageSize); // asynchronously load next page into LRU
