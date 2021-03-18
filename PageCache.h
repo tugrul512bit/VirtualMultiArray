@@ -19,134 +19,45 @@
 #include"Page.h"
 
 
-template<typename T>
-struct CacheNode
-{
-	size_t index;
-	size_t used;
-	Page<T> * page;
-	CacheNode():index(0),used(0),page(nullptr){}
-	CacheNode(size_t i, size_t u, Page<T> * ptr):index(i),used(u),page(ptr){}
-};
-
-template<typename T>
-void insertionSort(CacheNode<T> * const __restrict__ buf, const int size) {
-	CacheNode<T> keyUsed;
-	int j;
-	for(int i = 1; i<size; i++) {
-	  keyUsed = buf[i];
-	  j = i;
-	  while(j > 0 && buf[j-1].used>keyUsed.used) {
-		  buf[j] = buf[j-1];
-		 j--;
-	  }
-	  buf[j] = keyUsed;
-	}
-}
 
 template<typename T>
 class Cache
 {
 public:
-	Cache():size(0),ctr(0),szp(0),gpu(nullptr),q(nullptr),directCache(nullptr){ cacheHit=0; cacheMiss=0;  fImplementation= [&](const size_t & ind){ Page<T> * result=nullptr; return result;};}
+	Cache():size(0),ctr(0),szp(0),gpu(nullptr),q(nullptr){ ctrEvict=0; cacheHit=0; cacheMiss=0;  fImplementation= [&](const size_t & ind){ Page<T> * result=nullptr; return result;};}
 
 
 	Cache(size_t sizePrm, std::shared_ptr<ClCommandQueue> cq, std::shared_ptr<ClArray<T>> arr,
 			int pageSize, bool usePinnedArraysOnly,
 			std::shared_ptr<Page<T>> cpuArr,
-			bool hitRatioDebuggingEnabled=false):size(sizePrm),ctr(0),szp(pageSize),directCache(nullptr)
+			bool hitRatioDebuggingEnabled=false):size(sizePrm),ctr(0),szp(pageSize)
 	{
 		cacheHit=0;
 		cacheMiss=0;
 		q=cq;
 		gpu=arr;
+		ctr=0;
+		ctrEvict=size/2;
 
-		if(sizePrm<2)
+		for(int i=0;i<sizePrm;i++)
 		{
-			directCache = cpuArr.get();
-			updatePage(directCache,0ull);
-			directCache->reset();
-			if(hitRatioDebuggingEnabled)
-			{
-				fImplementation=[&](const size_t & ind)
-				{
-					if(directCache->getTargetGpuPage()!=ind)
-					{
-						updatePage(directCache, ind);
-						directCache->reset();
-						cacheMiss++;
-					}
-					else
-					{
-						cacheHit++;
-					}
-					return directCache;
-				};
-			}
-			else
-			{
-				fImplementation=[&](const size_t & ind)
-				{
-					if(directCache->getTargetGpuPage()!=ind)
-					{
-						updatePage(directCache, ind);
-						directCache->reset();
-					}
-					return directCache;
-				};
-			}
+			Page<T> * page = cpuArr.get()+i;
+			updatePage(page, (size_t)i);
+			page->reset();
+
+			usagePagePtr.push_back(page);
+			usageIndex.push_back((size_t)i);
+			usageUsed.push_back(0);
+			fastMapping[(size_t)i]=i;
 		}
-		else if(sizePrm<13)
+
+		if(hitRatioDebuggingEnabled)
 		{
-			for(int i=0;i<sizePrm;i++)
-			{
-				Page<T> * page = cpuArr.get()+i;
-				updatePage(page, (size_t)i);
-				page->reset();
-				CacheNode<T> node(i,0,page);
-				usage.push_back(node);
-			}
-			// array-based low-constant cost
-			if(hitRatioDebuggingEnabled)
-			{
-				fImplementation=[&](const size_t & ind)
-				{
-					return accessFastDebug(ind);
-				};
-			}
-			else
-			{
-				fImplementation=[&](const size_t & ind)
-				{
-					return accessFast(ind);
-				};
-			}
+			fImplementation = [&](const size_t & index ){ return accessClock2HandDebug(index);};
 		}
 		else
 		{
-			for(int i=0;i<sizePrm;i++)
-			{
-				Page<T> * page = cpuArr.get()+i;
-				updatePage(page, (size_t)i);
-				page->reset();
-				scalableCounts.push_front(page);
-				scalableMapping[(size_t)i]=scalableCounts.begin();
-			}
-			// map-linked-list-based good scaling
-			if(hitRatioDebuggingEnabled)
-			{
-				fImplementation=[&](const size_t & ind)
-				{
-					return accessScalableDebug(ind);
-				};
-			}
-			else
-			{
-				fImplementation=[&](const size_t & ind)
-				{
-					return accessScalable(ind);
-				};
-			}
+			fImplementation = [&](const size_t & index ){ return accessClock2Hand(index);};
 		}
 	}
 
@@ -156,158 +67,113 @@ public:
 		return fImplementation(index);
 	}
 
-
-	Page<T> * const accessScalable(const size_t & index)
+	// CLOCK algorithm with 2 hand counters
+	Page<T> * const accessClock2Hand(const size_t & index)
 	{
-		Page<T> * result=nullptr;
-		typename std::unordered_map<size_t,typename std::list<Page<T>*>::iterator>::iterator it = scalableMapping.find(index);
-		if(it == scalableMapping.end())
+
+		typename std::unordered_map<size_t,unsigned int>::iterator it = fastMapping.find(index);
+		if(it!=fastMapping.end())
 		{
-			// not found in cache
-			Page<T> * old = scalableCounts.back();
-
-			size_t oldIndex = old->getTargetGpuPage();
-			if(old->getTargetGpuPage()!=index)
-			{
-				updatePage(old, index);
-				old->reset();
-			}
-
-			scalableCounts.pop_back();
-			scalableMapping.erase(oldIndex);
-
-
-			// add a new
-			scalableCounts.push_front(old);
-			typename std::list<Page<T>*>::iterator iter = scalableCounts.begin();
-			scalableMapping[index]=iter;
-
-			result = old;
+			usageUsed[it->second]=1;
+			return usagePagePtr[it->second];
 		}
 		else
 		{
-			// found in cache
-			// remove
-			Page<T> * old = *(it->second);
-			scalableCounts.erase(it->second);
+			int ctrFound = -1;
+			while(ctrFound==-1)
+			{
+				if(usageUsed[ctr]>0)
+				{
+					usageUsed[ctr]=0;
+				}
 
+				ctr++;
+				if(ctr>=size)
+				{
+					ctr=0;
+				}
 
-			// add a new
-			scalableCounts.push_front(old);
-			auto iter = scalableCounts.begin();
-			scalableMapping[index]=iter;
+				if(usageUsed[ctrEvict]==0)
+				{
+					ctrFound=ctrEvict;
+				}
 
-			result = old;
+				ctrEvict++;
+				if(ctrEvict>=size)
+				{
+					ctrEvict=0;
+				}
+			}
+
+			if(usagePagePtr[ctrFound]->getTargetGpuPage()!=index)
+			{
+				updatePage(usagePagePtr[ctrFound], index);
+				usagePagePtr[ctrFound]->reset();
+			}
+
+			fastMapping.erase(usageIndex[ctrFound]);
+			fastMapping[index]=ctrFound;
+			usageIndex[ctrFound]=index;
+
+			return usagePagePtr[ctrFound];
+
 		}
-
-
-		return result;
 	}
 
 
-	Page<T> * const accessFast(const size_t & index)
+	Page<T> * const accessClock2HandDebug(const size_t & index)
 	{
-		Page<T> * result=nullptr;
-		auto it = std::find_if(usage.begin(),usage.end(),[index](const CacheNode<T>& n){ return n.index == index; });
-		if(it == usage.end())
+
+		typename std::unordered_map<size_t,unsigned int>::iterator it = fastMapping.find(index);
+		if(it!=fastMapping.end())
 		{
-			if(usage[0].page->getTargetGpuPage()!=index)
-			{
-				updatePage(usage[0].page, index);
-				usage[0].page->reset();
-			}
-			usage[0].index=index;
-			usage[0].used=ctr++;
-			result = usage[0].page;
-		}
-		else
-		{
-			it->used=ctr++;
-			result = it->page;
-		}
-		insertionSort(usage.data(),usage.size());
-
-		return result;
-	}
-
-
-
-	Page<T> * const accessScalableDebug(const size_t & index)
-	{
-		Page<T> * result=nullptr;
-		typename std::unordered_map<size_t,typename std::list<Page<T>*>::iterator>::iterator it = scalableMapping.find(index);
-		if(it == scalableMapping.end())
-		{
-			// not found in cache
-			Page<T> * old = scalableCounts.back();
-
-			size_t oldIndex = old->getTargetGpuPage();
-			if(old->getTargetGpuPage()!=index)
-			{
-				updatePage(old, index);
-				old->reset();
-			}
-
-			scalableCounts.pop_back();
-			scalableMapping.erase(oldIndex);
-
-
-			// add a new
-			scalableCounts.push_front(old);
-			typename std::list<Page<T>*>::iterator iter = scalableCounts.begin();
-			scalableMapping[index]=iter;
-
-			result = old;
-			cacheMiss++;
-		}
-		else
-		{
-			// found in cache
-			// remove
-			Page<T> * old = *(it->second);
-			scalableCounts.erase(it->second);
-
-
-			// add a new
-			scalableCounts.push_front(old);
-			auto iter = scalableCounts.begin();
-			scalableMapping[index]=iter;
-
-			result = old;
+			usageUsed[it->second]=1;
 			cacheHit++;
-		}
-
-
-		return result;
-	}
-
-
-	Page<T> * const accessFastDebug(const size_t & index)
-	{
-		Page<T> * result=nullptr;
-		auto it = std::find_if(usage.begin(),usage.end(),[index](const CacheNode<T>& n){ return n.index == index; });
-		if(it == usage.end())
-		{
-			if(usage[0].page->getTargetGpuPage()!=index)
-			{
-				updatePage(usage[0].page, index);
-				usage[0].page->reset();
-			}
-			usage[0].index=index;
-			usage[0].used=ctr++;
-			result = usage[0].page;
-			cacheMiss++;
+			return usagePagePtr[it->second];
 		}
 		else
 		{
-			it->used=ctr++;
-			result = it->page;
-			cacheHit++;
-		}
-		insertionSort(usage.data(),usage.size());
+			int ctrFound = -1;
+			while(ctrFound==-1)
+			{
+				if(usageUsed[ctr]>0)
+				{
+					usageUsed[ctr]=0;
+				}
 
-		return result;
+				ctr++;
+				if(ctr>=size)
+				{
+					ctr=0;
+				}
+
+				if(usageUsed[ctrEvict]==0)
+				{
+					ctrFound=ctrEvict;
+				}
+
+				ctrEvict++;
+				if(ctrEvict>=size)
+				{
+					ctrEvict=0;
+				}
+			}
+
+			if(usagePagePtr[ctrFound]->getTargetGpuPage()!=index)
+			{
+				updatePage(usagePagePtr[ctrFound], index);
+				usagePagePtr[ctrFound]->reset();
+			}
+
+			fastMapping.erase(usageIndex[ctrFound]);
+			fastMapping[index]=ctrFound;
+			usageIndex[ctrFound]=index;
+			cacheMiss++;
+			return usagePagePtr[ctrFound];
+
+		}
 	}
+
 
 	void resetCacheHit() noexcept
 	{
@@ -330,18 +196,20 @@ public:
 	}
 private:
 	size_t size;
-	size_t ctr;
-	std::vector<CacheNode<T>> usage;
+	unsigned int ctr;
+	unsigned int ctrEvict;
+	std::vector<Page<T>*> usagePagePtr;
+	std::vector<size_t> usageIndex;
+	std::vector<unsigned int> usageUsed;
+	std::unordered_map<size_t,unsigned int> fastMapping;
+
 	std::function<Page<T>*(const size_t&)> fImplementation;
-	std::unordered_map<size_t,typename std::list<Page<T>*>::iterator> scalableMapping;
-	std::list<Page<T>*> scalableCounts;
 
 	std::shared_ptr<ClCommandQueue> q;
 	std::shared_ptr<ClArray<T>> gpu;
 	size_t cacheHit;
 	size_t cacheMiss;
 	int szp;
-	Page<T> * directCache;
 
 	inline
 	void updatePage(Page<T> * const sel, const size_t & selectedPage) const
