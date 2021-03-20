@@ -10,6 +10,7 @@
 
 #include<memory>
 #include<vector>
+#include<mutex>
 #include <stdexcept>
 #include"ClPlatform.h"
 #include"ClDevice.h"
