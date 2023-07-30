@@ -23,18 +23,19 @@ public:
 	// debug=true: writes names and vram sizes of graphics cards on std::cout
 	GraphicsCardSupplyDepot(const bool debug=false)
 	{
-
+	
 		platformPtr = std::make_shared<ClPlatform>();
-
+	
 		deviceVecPtr = std::make_shared<std::vector<ClDevice>>();
-
+		
 		unsigned int n = platformPtr->size();
 		for(unsigned int i=0;i<n;i++)
 		{
+		
 			ClDevice dev(platformPtr->id(i),debug);
-
+		
 			auto dl = dev.generate();
-
+		
 			for(auto e:dl)
 				deviceVecPtr->push_back(e);
 		}
