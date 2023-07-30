@@ -26,12 +26,16 @@ public:
 	{
 		q=std::shared_ptr<cl_command_queue>(new cl_command_queue(),[](cl_command_queue * ptr){ if(CL_SUCCESS!=clReleaseCommandQueue(*ptr)){std::cout<<"error: release queue"<<std::endl;} delete ptr;});
 		cl_int err;
+		cl_queue_properties prop[3] = {CL_QUEUE_PROPERTIES , CL_QUEUE_PROFILING_ENABLE, 0};
+		*q = clCreateCommandQueueWithProperties(*ctx.ctxPtr(), *dev.devPtr(), 0, &err);
+		/*
 		*q=clCreateCommandQueue(
 						*ctx.ctxPtr(),
 						*dev.devPtr(),
 						0,
 						&err
 		);
+		*/
 
 
 
