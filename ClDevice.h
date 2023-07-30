@@ -31,8 +31,10 @@ public:
 	// todo: add dedicated-vram query to separate integrated-gpus from this. intent is to save RAM, waste VRAM
 	ClDevice(cl_platform_id platform, bool debug=false)
 	{
+
 		n=std::make_shared<unsigned int>();
 		vram = std::shared_ptr<int>(new int[20],[&](int * ptr){ delete [] ptr; });
+		
 		device = std::shared_ptr<cl_device_id>(new cl_device_id[20],[&](cl_device_id * ptr){
 			for(unsigned int i=0;i<*n;i++)
 			{
@@ -42,14 +44,15 @@ public:
 			}
 			delete [] ptr;
 		});
-
-		if(CL_SUCCESS == clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU,20, device.get(), n.get()))
+		
+		if(CL_SUCCESS == clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL,20, device.get(), n.get()))
 		{
-
+		
 			{
 				for(int i=0;i<*n;i++)
 				{
 					cl_ulong memSize=0;
+					
 					if(CL_SUCCESS!=clGetDeviceInfo(device.get()[i],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),&memSize,nullptr))
 					{
 
@@ -61,6 +64,7 @@ public:
 						char name[2048];
 						if(CL_SUCCESS==clGetDeviceInfo(device.get()[i], CL_DEVICE_NAME,  2048, (void *)name, nullptr))
 						{
+						
 							if(debug)
 							{
 								std::string str = name;
@@ -71,6 +75,7 @@ public:
 						}
 						else
 						{
+						
 							if(debug)
 							{
 								std::cout<<"VRAM: "<<memSize<<" bytes"<<std::endl;
@@ -83,6 +88,7 @@ public:
 		}
 		else
 		{
+		
 			throw std::invalid_argument("error: device");
 		}
 	}
